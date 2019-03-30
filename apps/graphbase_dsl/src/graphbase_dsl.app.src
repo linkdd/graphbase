@@ -1,0 +1,15 @@
+{application, graphbase_dsl, [
+    {description, "Graphbase DSL"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {graphbase_dsl_app, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        graphbase_core
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache 2.0"]},
+    {links, []}
+]}.

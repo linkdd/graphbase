@@ -1,0 +1,1 @@
+-record(entity, {id, type, data}).

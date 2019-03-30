@@ -1,0 +1,15 @@
+{application, graphbase_system, [
+    {description, "An OTP application"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {graphbase_system_app, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        graphbase_entity
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache 2.0"]},
+    {links, []}
+]}.

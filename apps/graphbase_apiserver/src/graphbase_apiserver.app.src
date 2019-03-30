@@ -1,0 +1,18 @@
+{application, graphbase_apiserver, [
+    {description, "Graphbase API Server"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {graphbase_apiserver_app, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        cowboy,
+        graphbase_dsl,
+        graphbase_backend,
+        graphbase_core
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache 2.0"]},
+    {links, []}
+]}.
