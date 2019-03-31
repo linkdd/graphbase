@@ -27,7 +27,7 @@ start_link(Host, Port, Options) ->
 %%====================================================================
 
 init({Host, Port, Options}) ->
-    {ok, {{one_for_one, 0, 1}, [
+    {ok, {{one_for_one, 1, 5}, [
         #{
             id => graphbase_backend_connection_pool_sup,
             start => {graphbase_backend_connection_pool, start_link, [Host, Port, Options]},

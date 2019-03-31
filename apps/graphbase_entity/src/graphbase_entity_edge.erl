@@ -9,13 +9,12 @@
     del_neighbors/2
 ]).
 
--include_lib("graphbase_entity/include/entity.hrl").
-
 %%====================================================================
 %% API functions
 %%====================================================================
 
-type(#entity{id = GraphId}) ->
+type(Graph) ->
+    GraphId = graphbase_entity_obj:id(Graph),
     <<GraphId/binary, "_edges">>.
 
 %%--------------------------------------------------------------------
@@ -39,13 +38,11 @@ new(Id, Graph, NodeRef) ->
 %%--------------------------------------------------------------------
 add_neighbors(Edge, [NodeRef | NodeRefs]) ->
     add_neighbors(
-        Edge#entity{
-            data = riakc_map:update(
-                {<<"neighbors">>, set},
-                fun(S) -> riakc_set:add_element(NodeRef, S) end,
-                Edge#entity.data
-            )
-        },
+        graphbase_entity_obj:update(
+            {<<"neighbors">>, set},
+            fun(S) -> riakc_set:add_element(NodeRef, S) end,
+            Edge
+        ),
         NodeRefs
     );
 
@@ -55,13 +52,11 @@ add_neighbors(Edge, []) ->
 %%--------------------------------------------------------------------
 del_neighbors(Edge, [NodeRef | NodeRefs]) ->
     del_neighbors(
-        Edge#entity{
-            data = riakc_map:update(
-                {<<"neighbors">>, set},
-                fun(S) -> riakc_set:del_element(NodeRef, S) end,
-                Edge#entity.data
-            )
-        },
+        graphbase_entity_obj:update(
+            {<<"neighbors">>, set},
+            fun(S) -> riakc_set:del_element(NodeRef, S) end,
+            Edge
+        ),
         NodeRefs
     );
 

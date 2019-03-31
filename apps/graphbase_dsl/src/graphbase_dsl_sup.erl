@@ -27,7 +27,7 @@ start_link() ->
 %%====================================================================
 
 init([]) ->
-    {ok, {{one_for_one, 0, 1}, [
+    {ok, {{one_for_one, 1, 5}, [
         #{
             id => graphbase_dsl_api_server,
             start => {graphbase_dsl_api, start_link, []},

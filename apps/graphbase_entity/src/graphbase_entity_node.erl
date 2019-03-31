@@ -3,13 +3,12 @@
 %% API
 -export([type/1, new/1, new/2]).
 
--include_lib("graphbase_entity/include/entity.hrl").
-
 %%====================================================================
 %% API functions
 %%====================================================================
 
-type(#entity{id = GraphId}) ->
+type(Graph) ->
+    GraphId = graphbase_entity_obj:id(Graph),
     <<GraphId/binary, "_nodes">>.
 
 %%--------------------------------------------------------------------

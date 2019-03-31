@@ -7,28 +7,39 @@
 
 %% API
 -export([
-    make_id/0,
-    get_id/1,
+    type/1,
+    id/1,
+    ref/1,
+    unref/1,
     new/1,
     new/2,
     value/1,
-    update/3
+    update/3,
+    with_data/2,
+    op/1
 ]).
 
--include_lib("graphbase_entity/include/entity.hrl").
+-record(entity, {id, type, data}).
 
 %%====================================================================
 %% API functions
 %%====================================================================
 
-make_id() ->
-    Bin = term_to_binary({node(), eid:get_int()}),
-    Hex = lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- binary_to_list(Bin)]),
-    list_to_binary(Hex).
+type(#entity{type = Type}) ->
+    Type.
 
 %%--------------------------------------------------------------------
-get_id(#entity{id = Id}) ->
+id(#entity{id = Id}) ->
     Id.
+
+%%--------------------------------------------------------------------
+ref(#entity{id = Id, type = Type}) ->
+    term_to_binary({Id, Type}).
+
+%%--------------------------------------------------------------------
+unref(Ref) ->
+    {Id, Type} = binary_to_term(Ref),
+    #entity{id = Id, type = Type}.
 
 %%--------------------------------------------------------------------
 new(Type) ->
@@ -48,4 +59,21 @@ value(#entity{data = Data}) ->
 
 %%--------------------------------------------------------------------
 update(Key, Fun, Entity = #entity{data = Data}) ->
-    Entity#entity{data = riakc_map:update(Key, Fun, Data)}.
+    with_data(riakc_map:update(Key, Fun, Data), Entity).
+
+%%--------------------------------------------------------------------
+with_data(Data, Entity) ->
+    Entity#entity{data = Data}.
+
+%%--------------------------------------------------------------------
+op(#entity{data = Data}) ->
+    riakc_map:to_op(Data).
+
+%%====================================================================
+%% Internal functions
+%%====================================================================
+
+make_id() ->
+    Bin = term_to_binary({node(), eid:get_int()}),
+    Hex = lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- binary_to_list(Bin)]),
+    list_to_binary(Hex).
