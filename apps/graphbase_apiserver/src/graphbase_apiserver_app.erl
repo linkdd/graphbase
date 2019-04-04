@@ -10,7 +10,7 @@
 %% Application callbacks
 -export([start/2, stop/1]).
 
--record(state, {conn}).
+-record(stateset, {user_col}).
 
 %%====================================================================
 %% API
@@ -18,21 +18,24 @@
 
 start(_StartType, _StartArgs) ->
     {ok, Pid} = graphbase_apiserver_sup:start_link(),
-    {ok, Conn} = graphbase_backend_connection_pool:acquire(),
+    StateSet = #stateset{
+        user_col = graphbase_apiserver_user_collection:init_state()
+    },
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/", graphbase_apiserver_root, []},
-            {"/status", graphbase_apiserver_status, Conn},
+            {"/status", graphbase_apiserver_status, []},
+            {"/api/users", graphbase_apiserver_user_collection, StateSet#stateset.user_col},
             {"/api/requests", graphbase_apiserver_requests, []}
         ]}
     ]),
     {ok, _} = cowboy:start_clear(
         graphbase_apiserver_listener,
-        [{port, graphbase_core:get_confopt(int, port, 7439)}],
+        [{port, graphbase_core:get_confopt(int, apiserver_port, 7439)}],
         #{env => #{dispatch => Dispatch}}
     ),
-    {ok, Pid, #state{conn = Conn}}.
+    {ok, Pid}.
 
 %%--------------------------------------------------------------------
-stop(#state{conn = Conn}) ->
-    graphbase_backend_connection_pool:release(Conn).
+stop(#stateset{user_col = UserColState}) ->
+    graphbase_apiserver_user_collection:finalize_state(UserColState).

@@ -4,6 +4,7 @@
 %%%-------------------------------------------------------------------
 
 -module(graphbase_apiserver_root).
+-behaviour(cowboy_handler).
 
 %% API
 -export([init/2]).
@@ -24,6 +25,19 @@ init(Req0 = #{method := <<"GET">>}, State) ->
             {link, "/status", [
                 {description, "Current cluster health"},
                 {allow, ["GET"]}
+            ]},
+            {link, "/api/users", [
+                {description, "User management"},
+                {endpoints, [
+                    {link, "/", [
+                        {description, "User collection"},
+                        {allow, ["GET", "POST"]}
+                    ]},
+                    {link, "/:username", [
+                        {description, "User resource"},
+                        {allow, ["GET", "PUT", "DELETE"]}
+                    ]}
+                ]}
             ]},
             {link, "/api/requests", [
                 {description, "Request management"},

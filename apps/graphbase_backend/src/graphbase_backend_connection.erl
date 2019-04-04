@@ -44,7 +44,7 @@ stop(Conn) ->
 
 %%--------------------------------------------------------------------
 stop(Conn, Reason) ->
-    gen_server:cast(Conn, {stop, Reason}).
+    gen_server:call(Conn, {stop, Reason}).
 
 %%--------------------------------------------------------------------
 create_search_schema(Conn, SchemaName, SchemaData) ->
@@ -60,6 +60,7 @@ fetch_type(Conn, Bucket, Key) ->
 
 %%--------------------------------------------------------------------
 update_type(Conn, Bucket, Key, Operation) ->
+    io:format("/!\\ HELLO: ~p~n", [{Bucket, Key}]),
     gen_server:call(Conn, {update_type, Bucket, Key, Operation}).
 
 %%--------------------------------------------------------------------
@@ -75,8 +76,9 @@ init({Host, Port, Options0}) ->
         undefined -> [{auto_reconnect, true} | Options0];
         _         -> Options0
     end,
+    Timeout = proplists:get_value(timeout, Options, 60000),
     {ok, Conn} = riakc_pb_socket:start_link(Host, Port, Options),
-    {ok, #state{conn = Conn}}.
+    {ok, #state{conn = Conn}, Timeout}.
 
 %%--------------------------------------------------------------------
 code_change(_OldVersion, State, _Extra) ->
@@ -107,12 +109,14 @@ handle_call({fetch_type, Bucket, Key}, _From, State) ->
     {reply, riakc_pb_socket:fetch_type(State#state.conn, Bucket, Key), State};
         
 handle_call({update_type, Bucket, Key, Operation}, _From, State) ->
+    io:format("WORLD~n"),
     {reply, riakc_pb_socket:update_type(State#state.conn, Bucket, Key, Operation, [{return_body, true}]), State};
 
 handle_call({delete, Bucket, Key}, _From, State) ->
     {reply, riakc_pb_socket:delete(State#state.conn, Bucket, Key), State};
 
 handle_call(Request, _From, State) ->
+    io:format("WORLD~n"),
     {reply, {error, {invalid, Request}}, State}.
 
 %%--------------------------------------------------------------------

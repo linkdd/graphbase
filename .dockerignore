@@ -17,4 +17,11 @@ _build
 *.iml
 rebar3.crashdump
 *~
+docker
+.git*
+.editorconfig
+.travis.yml
+LICENSE
+Makefile
+README.rst
 .vscode

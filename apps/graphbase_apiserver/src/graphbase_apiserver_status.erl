@@ -12,19 +12,19 @@
 %% API Functions
 %%====================================================================
 
-init(Req0 = #{method := <<"GET">>}, Conn) ->
+init(Req0 = #{method := <<"GET">>}, State) ->
     Req = cowboy_req:reply(
         200,
         #{<<"content-type">> => "text/plain"},
         graphbase_apiserver_packet:encode({status, ok}),
         Req0
     ),
-    {ok, Req, Conn};
+    {ok, Req, State};
         
-init(Req0, Conn) ->
+init(Req0, State) ->
     Req = cowboy_req:reply(
         405,
         #{<<"allow">> => <<"GET">>},
         Req0
     ),
-    {ok, Req, Conn}.
+    {ok, Req, State}.

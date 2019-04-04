@@ -1,0 +1,23 @@
+version: '3'
+services:
+  kvs:
+    image: graphbase/kvs:latest
+    build:
+      dockerfile: docker/kvs.Dockerfile
+      context: ..
+    ports:
+      - 8087:8087
+      - 8098:8098
+  node:
+    image: graphbase/node:latest
+    build:
+      dockerfile: docker/node.Dockerfile
+      context: ..
+    ports:
+      - 7439:7439
+    depends_on:
+      - kvs
+    environment:
+      GRAPHBASE_BACKEND_RIAK_HOST: kvs
+      GRAPHBASE_BACKEND_RIAK_PORT: 8087
+      GRAPHBASE_APISERVER_PORT: 7439

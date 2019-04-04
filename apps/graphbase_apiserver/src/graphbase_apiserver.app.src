@@ -8,8 +8,8 @@
         stdlib,
         cowboy,
         graphbase_dsl,
-        graphbase_backend,
-        graphbase_core
+        graphbase_core,
+        graphbase_system
     ]},
     {env, []},
     {modules, []},

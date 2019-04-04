@@ -5,7 +5,8 @@
     {mod, {graphbase_backend_app, []}},
     {applications, [
         kernel,
-        stdlib
+        stdlib,
+        riakc
     ]},
     {env, []},
     {modules, []},
