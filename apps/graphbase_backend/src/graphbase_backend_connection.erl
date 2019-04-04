@@ -60,7 +60,6 @@ fetch_type(Conn, Bucket, Key) ->
 
 %%--------------------------------------------------------------------
 update_type(Conn, Bucket, Key, Operation) ->
-    io:format("/!\\ HELLO: ~p~n", [{Bucket, Key}]),
     gen_server:call(Conn, {update_type, Bucket, Key, Operation}).
 
 %%--------------------------------------------------------------------
@@ -109,14 +108,12 @@ handle_call({fetch_type, Bucket, Key}, _From, State) ->
     {reply, riakc_pb_socket:fetch_type(State#state.conn, Bucket, Key), State};
         
 handle_call({update_type, Bucket, Key, Operation}, _From, State) ->
-    io:format("WORLD~n"),
     {reply, riakc_pb_socket:update_type(State#state.conn, Bucket, Key, Operation, [{return_body, true}]), State};
 
 handle_call({delete, Bucket, Key}, _From, State) ->
     {reply, riakc_pb_socket:delete(State#state.conn, Bucket, Key), State};
 
 handle_call(Request, _From, State) ->
-    io:format("WORLD~n"),
     {reply, {error, {invalid, Request}}, State}.
 
 %%--------------------------------------------------------------------

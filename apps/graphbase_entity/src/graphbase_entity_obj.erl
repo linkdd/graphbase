@@ -74,9 +74,7 @@ save(Entity = #entity{conn = Conn, id = Id, type = Type, data = Data}) ->
         undefined ->
             {ok, Entity};
         Operation ->
-            R0 = graphbase_backend_connection:update_type(Conn, bucket_for_type(Type), Id, Operation),
-            io:format("~p~n", [R0]),
-            case R0 of
+            case graphbase_backend_connection:update_type(Conn, bucket_for_type(Type), Id, Operation) of
                 {ok, NewData} ->
                     {ok, with_data(Entity, NewData)};
                 {error, unmodified} ->
