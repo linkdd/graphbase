@@ -18,9 +18,7 @@ debug(Arguments) ->
 
 %%--------------------------------------------------------------------
 list_users(_Arguments) ->
-    graphbase_core:with(
-        fun() -> graphbase_backend_connection_pool:acquire() end,
-        fun(Conn) -> graphbase_backend_connection_pool:release(Conn) end,
+    graphbase_backend_connection_pool:with(
         fun(Conn) ->
             MetaGraph = graphbase_system_metagraph:new(Conn),
             Users = graphbase_system_metagraph:get_users(MetaGraph),
@@ -35,9 +33,7 @@ list_users(_Arguments) ->
 
 %%--------------------------------------------------------------------
 list_acls(_Arguments) ->
-    graphbase_core:with(
-        fun() -> graphbase_backend_connection_pool:acquire() end,
-        fun(Conn) -> graphbase_backend_connection_pool:release(Conn) end,
+    graphbase_backend_connection_pool:with(
         fun(Conn) ->
             MetaGraph = graphbase_system_metagraph:new(Conn),
             ACLs = graphbase_system_metagraph:get_acls(MetaGraph),
@@ -52,9 +48,7 @@ list_acls(_Arguments) ->
 
 %%--------------------------------------------------------------------
 list_graphs(_Arguments) ->
-    graphbase_core:with(
-        fun() -> graphbase_backend_connection_pool:acquire() end,
-        fun(Conn) -> graphbase_backend_connection_pool:release(Conn) end,
+    graphbase_backend_connection_pool:with(
         fun(Conn) ->
             MetaGraph = graphbase_system_metagraph:new(Conn),
             Graphs = graphbase_system_metagraph:get_graphs(MetaGraph),

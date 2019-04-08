@@ -27,9 +27,7 @@ stop(_State) ->
 %%====================================================================
 
 initialize() ->
-    graphbase_core:with(
-        fun() -> graphbase_backend_connection_pool:acquire() end,
-        fun(Conn) -> graphbase_backend_connection_pool:release(Conn) end,
+    graphbase_backend_connection_pool:with(
         fun(Conn) ->
             MetaGraphRef = create_meta_graph(Conn),
             User = create_admin_user(Conn, MetaGraphRef),
