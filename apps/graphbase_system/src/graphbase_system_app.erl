@@ -27,12 +27,16 @@ stop(_State) ->
 %%====================================================================
 
 initialize() ->
-    {ok, Conn} = graphbase_backend_connection_pool:acquire(),
-    MetaGraphRef = create_meta_graph(Conn),
-    User = create_admin_user(Conn, MetaGraphRef),
-    ok = create_admin_acl(Conn, MetaGraphRef, User, read),
-    ok = create_admin_acl(Conn, MetaGraphRef, User, write),
-    graphbase_backend_connection_pool:release(Conn).
+    graphbase_core:with(
+        fun() -> graphbase_backend_connection_pool:acquire() end,
+        fun(Conn) -> graphbase_backend_connection_pool:release(Conn) end,
+        fun(Conn) ->
+            MetaGraphRef = create_meta_graph(Conn),
+            User = create_admin_user(Conn, MetaGraphRef),
+            ok = create_admin_acl(Conn, MetaGraphRef, User, read),
+            ok = create_admin_acl(Conn, MetaGraphRef, User, write)
+        end
+    ).
 
 %%--------------------------------------------------------------------
 create_meta_graph(Conn) ->
