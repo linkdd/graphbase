@@ -2,6 +2,7 @@
 
 %% API exports
 -export([
+    with/3,
     get_confopt/1,
     get_confopt/2,
     get_confopt/3
@@ -11,6 +12,28 @@
 %% API functions
 %%====================================================================
 
+with(Initializer, Finalizer, Block) ->
+    case Initializer() of
+        {ok, Resource} ->
+            try
+                Block(Resource)
+            of
+                RetVal -> RetVal
+            catch
+                Exception:Reason ->
+                    {error, {caught, Exception, Reason}}
+            after
+                case Finalizer(Resource) of
+                    ok    -> ok;
+                    Error -> throw({error, {resource_not_finalized, Error}})
+                end
+            end;
+        
+        Error ->
+            {error, {resource_not_initialized, Error}}
+    end.
+
+%%--------------------------------------------------------------------
 get_confopt(Option) ->
     get_confopt(Option, undefined).
 
@@ -35,21 +58,6 @@ get_confopt(Type, Option, Default) ->
 %% Internal functions
 %%====================================================================
 
-wait_for([], []) ->
-    ok;
-
-wait_for(MonitorRefs, Pids) ->
-    receive
-        {'DOWN', MonitorRef, process, Pid, _} ->
-            wait_for(
-                lists:delete(MonitorRef, MonitorRefs),
-                lists:delete(Pid, Pids)
-            );
-        Message ->
-            {error, {invalid, Message}}
-    end.
-
-%%--------------------------------------------------------------------
 atom_to_envvar(Option) ->
     "GRAPHBASE_" ++ string:to_upper(atom_to_list(Option)).
 

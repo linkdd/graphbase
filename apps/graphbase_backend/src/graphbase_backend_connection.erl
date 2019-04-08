@@ -75,7 +75,7 @@ init({Host, Port, Options0}) ->
         undefined -> [{auto_reconnect, true} | Options0];
         _         -> Options0
     end,
-    Timeout = proplists:get_value(timeout, Options, 60000),
+    Timeout = proplists:get_value(timeout, Options, 5000),
     {ok, Conn} = riakc_pb_socket:start_link(Host, Port, Options),
     {ok, #state{conn = Conn}, Timeout}.
 

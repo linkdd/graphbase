@@ -10,9 +10,10 @@
 %% API
 -export([
     start_link/0,
-    stop/0,
+    start_link/1,
     stop/1,
-    run/1
+    stop/2,
+    run/2
 ]).
 
 %% Generic server callbacks
@@ -25,33 +26,36 @@
     handle_cast/2
 ]).
 
--define(SERVER, ?MODULE).
-
 %%====================================================================
 %% API functions
 %%====================================================================
 
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    start_link([]).
 
 %%--------------------------------------------------------------------
-stop() ->
-    stop(normal).
+start_link(Args) ->
+    gen_server:start_link(?MODULE, Args, []).
 
 %%--------------------------------------------------------------------
-stop(Reason) ->
-    gen_server:cast(?SERVER, {stop, Reason}).
+stop(Interpreter) ->
+    stop(Interpreter, normal).
 
 %%--------------------------------------------------------------------
-run(AST) ->
-    gen_server:call(?SERVER, {run, AST}).
+stop(Interpreter, Reason) ->
+    gen_server:cast(Interpreter, {stop, Reason}).
+
+%%--------------------------------------------------------------------
+run(Interpreter, AST) ->
+    gen_server:call(Interpreter, {run, AST}).
 
 %%====================================================================
 %% Generic Server callbacks
 %%====================================================================
 
-init(_Args) ->
-    {ok, nostate}.
+init(Args) ->
+    Timeout = proplists:get_value(timeout, Args, 5000),
+    {ok, nostate, Timeout}.
 
 %%--------------------------------------------------------------------
 code_change(_OldVersion, State, _Extra) ->
@@ -91,36 +95,48 @@ execute(AST) ->
 
 %%--------------------------------------------------------------------
 execute([Statement | Statements], Scope, Response) ->
-    {ok, NewScope, NewResponse} = execute_statement(Statement, Scope, Response),
-    execute(Statements, NewScope, NewResponse);
+    case execute_statement(Statement, Scope, Response) of
+        {ok, NewScope, NewResponse} ->
+            execute(Statements, NewScope, NewResponse);
+        Error ->
+            {error, {statement_error, Error}}
+    end;
 
 execute([], _Scope, Response) ->
     {ok, dict:to_list(Response)}.
 
 %%--------------------------------------------------------------------
 execute_statement({assign, Name, Value}, Scope, Response) ->
-    {ok, execute_assign(Name, Value, Scope), Response};
+    case execute_assign(Name, Value, Scope) of
+        {ok, NewScope} -> {ok, NewScope, Response};
+        Error          -> {error, {assign_failed, Error}}
+    end;
 
 execute_statement({call, Function, Arguments}, Scope, Response) ->
-    execute_call(Function, Arguments, Scope),
-    {ok, Scope, Response};
+    case execute_call(Function, Arguments, Scope) of
+        {ok, _} -> {ok, Scope, Response};
+        Error   -> {error, {call_failed, Error}}
+    end;
 
 execute_statement({yield, Name}, Scope, Response) ->
     {ok, Scope, execute_yield(Name, Scope, Response)}.
 
 %%--------------------------------------------------------------------
 execute_assign(Name, {constant, Value}, Scope) ->
-    dict:store(Name, Value, Scope);
+    {ok, dict:store(Name, Value, Scope)};
 
 execute_assign(Name, {call, Function, Arguments}, Scope) ->
-    dict:store(Name, execute_call(Function, Arguments, Scope), Scope);
+    case execute_call(Function, Arguments, Scope) of
+        {ok, Value} -> {ok, dict:store(Name, Value, Scope)};
+        Error       -> {error, {call_failed, Error}}
+    end;
 
 execute_assign(Name, {variable, VarName}, Scope) ->
-    dict:store(Name, dict:fetch(VarName, Scope), Scope).
+    {ok, dict:store(Name, dict:fetch(VarName, Scope), Scope)}.
 
 %%--------------------------------------------------------------------
 execute_call(Function, Arguments, Scope) ->
-    erlang:apply(graphbase_core_api, Function, graphbase_dsl_utils:expand(Arguments, Scope)).
+    erlang:apply(graphbase_core_api, Function, [graphbase_dsl_utils:expand(Arguments, Scope)]).
 
 %%--------------------------------------------------------------------
 execute_yield(Name, Scope, Response) ->

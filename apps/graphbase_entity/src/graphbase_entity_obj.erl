@@ -64,8 +64,8 @@ fetch(Entity = #entity{conn = Conn, id = Id, type = Type}) ->
     case graphbase_backend_connection:fetch_type(Conn, bucket_for_type(Type), Id) of
         {ok, Data} ->
             {ok, with_data(Entity, Data)};
-        {error, Reason} ->
-            {error, Reason}
+        Error ->
+            {error, {unable_to_fetch, Error}}
     end.
 
 %%--------------------------------------------------------------------
@@ -86,12 +86,17 @@ save(Entity = #entity{conn = Conn, id = Id, type = Type, data = Data}) ->
 
 %%--------------------------------------------------------------------
 delete(#entity{conn = Conn, id = Id, type = Type}) ->
-    graphbase_backend_connection:delete(Conn, bucket_for_type(Type), Id).
+    case graphbase_backend_connection:delete(Conn, bucket_for_type(Type), Id) of
+        ok    -> ok;
+        Error -> {error, {unable_to_delete, Error}}
+    end.
 
 %%--------------------------------------------------------------------
 value(Entity) ->
-    {ok, #entity{data = Data}} = fetch(Entity),
-    riakc_map:value(Data).
+    case fetch(Entity) of
+        {ok, #entity{data = Data}} -> riakc_map:value(Data);
+        Error                      -> Error
+    end.
 
 %%--------------------------------------------------------------------
 update(Entity = #entity{data = Data}, Key, Fun) ->

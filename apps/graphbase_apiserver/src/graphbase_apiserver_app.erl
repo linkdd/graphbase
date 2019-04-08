@@ -10,22 +10,16 @@
 %% Application callbacks
 -export([start/2, stop/1]).
 
--record(stateset, {user_col}).
-
 %%====================================================================
 %% API
 %%====================================================================
 
 start(_StartType, _StartArgs) ->
     {ok, Pid} = graphbase_apiserver_sup:start_link(),
-    StateSet = #stateset{
-        user_col = graphbase_apiserver_user_collection:init_state()
-    },
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/", graphbase_apiserver_root, []},
             {"/status", graphbase_apiserver_status, []},
-            {"/api/users", graphbase_apiserver_user_collection, StateSet#stateset.user_col},
             {"/api/requests", graphbase_apiserver_requests, []}
         ]}
     ]),
@@ -37,5 +31,5 @@ start(_StartType, _StartArgs) ->
     {ok, Pid}.
 
 %%--------------------------------------------------------------------
-stop(#stateset{user_col = UserColState}) ->
-    graphbase_apiserver_user_collection:finalize_state(UserColState).
+stop(_State) ->
+    ok.

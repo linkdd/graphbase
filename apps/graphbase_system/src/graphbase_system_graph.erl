@@ -3,6 +3,7 @@
 %% API
 -export([
     new/2,
+    new/3,
     entity/1
 ]).
 
@@ -10,9 +11,12 @@
 %% API
 %%====================================================================
 
-new(Conn, SystemGraph) ->
-    GraphId = graphbase_entity_obj:id(graphbase_entity_graph:new(Conn)),
-    Graph0 = graphbase_entity_node:new(Conn, <<"graph_", GraphId/binary>>, SystemGraph),
+new(Conn, MetaGraph) ->
+    new(Conn, graphbase_entity_obj:id(graphbase_entity_graph:new(Conn)), MetaGraph).
+
+%%--------------------------------------------------------------------
+new(Conn, GraphId, MetaGraph) ->
+    Graph0 = graphbase_entity_node:new(Conn, <<"graph_", GraphId/binary>>, MetaGraph),
     Graph1 = graphbase_entity_node:set_kind(Graph0, <<"graph">>),
     graphbase_entity_obj:update(
         Graph1,

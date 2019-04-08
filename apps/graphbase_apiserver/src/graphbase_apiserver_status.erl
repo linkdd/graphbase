@@ -16,7 +16,9 @@ init(Req0 = #{method := <<"GET">>}, State) ->
     Req = cowboy_req:reply(
         200,
         #{<<"content-type">> => "text/plain"},
-        graphbase_apiserver_packet:encode({status, ok}),
+        graphbase_apiserver_packet:encode({status, [
+            {nodes, [node() | nodes()]}
+        ]}),
         Req0
     ),
     {ok, Req, State};

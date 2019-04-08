@@ -14,15 +14,16 @@
 %% API
 %%====================================================================
 
-new(Conn, SystemGraph, User, Access) ->
+new(Conn, MetaGraph, User, Access) ->
     UserName = graphbase_system_user:name(User),
-    Id = <<"acl_", Access/binary, "_", UserName/binary>>,
-    ACL0 = graphbase_entity_edge:new(Conn, Id, SystemGraph, User),
+    BAccess = list_to_binary(atom_to_list(Access)),
+    Id = <<"acl_", BAccess/binary, "_", UserName/binary>>,
+    ACL0 = graphbase_entity_edge:new(Conn, Id, MetaGraph, User),
     ACL1 = graphbase_entity_edge:set_relationship(ACL0, <<"acl">>),
     graphbase_entity_obj:update(
         ACL1,
         {<<"access">>, register},
-        fun(R) -> riakc_register:set(atom_to_list(list_to_binary(Access)), R) end
+        fun(R) -> riakc_register:set(BAccess, R) end
     ).
 
 %%--------------------------------------------------------------------

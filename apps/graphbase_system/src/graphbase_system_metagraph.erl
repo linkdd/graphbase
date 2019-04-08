@@ -22,43 +22,43 @@ new(Conn) ->
     graphbase_entity_graph:new(Conn, <<"system">>).
 
 %%--------------------------------------------------------------------
-get_users(SystemGraph) ->
-    graphbase_entity_graph:filter_nodes(SystemGraph, [
+get_users(MetaGraph) ->
+    graphbase_entity_graph:filter_nodes(MetaGraph, [
         {property, {<<"kind">>, register}, {eq, <<"user">>}}
     ]).
 
 %%--------------------------------------------------------------------
-add_user(SystemGraph, User) ->
-    graphbase_entity_graph:add_nodes(SystemGraph, [User]).
+add_user(MetaGraph, User) ->
+    graphbase_entity_graph:add_nodes(MetaGraph, [User]).
 
 %%--------------------------------------------------------------------
-del_user(SystemGraph, User) ->
-    graphbase_entity_graph:del_nodes(SystemGraph, [User]).
+del_user(MetaGraph, User) ->
+    graphbase_entity_graph:del_nodes(MetaGraph, [User]).
 
 %%--------------------------------------------------------------------
-get_graphs(SystemGraph) ->
-    graphbase_entity_graph:filter_nodes(SystemGraph, [
+get_graphs(MetaGraph) ->
+    graphbase_entity_graph:filter_nodes(MetaGraph, [
         {property, {<<"kind">>, register}, {eq, <<"graph">>}}
     ]).
 
 %%--------------------------------------------------------------------
-add_graph(SystemGraph, Graph) ->
-    graphbase_entity_graph:add_nodes(SystemGraph, [Graph]).
+add_graph(MetaGraph, Graph) ->
+    graphbase_entity_graph:add_nodes(MetaGraph, [Graph]).
 
 %%--------------------------------------------------------------------
-del_graph(SystemGraph, Graph) ->
-    graphbase_entity_graph:del_nodes(SystemGraph, [Graph]).
+del_graph(MetaGraph, Graph) ->
+    graphbase_entity_graph:del_nodes(MetaGraph, [Graph]).
 
 %%--------------------------------------------------------------------
-get_acls(SystemGraph) ->
-    graphbase_entity_graph:filter_edges(SystemGraph, [
+get_acls(MetaGraph) ->
+    graphbase_entity_graph:filter_edges(MetaGraph, [
         {property, {<<"relationship">>, register}, {eq, <<"acl">>}}
     ]).
 
 %%--------------------------------------------------------------------
-add_acl(SystemGraph, ACL) ->
-    graphbase_entity_graph:add_edges(SystemGraph, [ACL]).
+add_acl(MetaGraph, ACL) ->
+    graphbase_entity_graph:add_edges(MetaGraph, [ACL]).
 
 %%--------------------------------------------------------------------
-del_acl(SystemGraph, ACL) ->
-    graphbase_entity_graph:del_edges(SystemGraph, [ACL]).
+del_acl(MetaGraph, ACL) ->
+    graphbase_entity_graph:del_edges(MetaGraph, [ACL]).

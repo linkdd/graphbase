@@ -38,7 +38,11 @@ handle_post(false, Req0) ->
 handle_post(true, Req0) ->
     {ok, RawRequest, Req1} = cowboy_req:read_body(Req0),
     Request = graphbase_apiserver_packet:decode(RawRequest),
-    Reply = graphbase_dsl_api:interpret(Request),
+    Reply = graphbase_core:with(
+        fun() -> graphbase_dsl_api:start_link() end,
+        fun(API) -> graphbase_dsl_api:stop(API) end,
+        fun(API) -> graphbase_dsl_api:interpret(API, Request) end
+    ),
     cowboy_req:reply(
         200,
         #{<<"content-type">> => <<"text/plain">>},

@@ -10,9 +10,10 @@
 %% API
 -export([
     start_link/0,
-    stop/0,
+    start_link/1,
     stop/1,
-    parse/1
+    stop/2,
+    parse/2
 ]).
 
 %% Generic server callbacks
@@ -25,33 +26,36 @@
     handle_cast/2
 ]).
 
--define(SERVER, ?MODULE).
-
 %%====================================================================
 %% API functions
 %%====================================================================
 
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    start_link([]).
 
 %%--------------------------------------------------------------------
-stop() ->
-    stop(normal).
+start_link(Args) ->
+    gen_server:start_link(?MODULE, Args, []).
 
 %%--------------------------------------------------------------------
-stop(Reason) ->
-    gen_server:cast(?SERVER, {stop, Reason}).
+stop(Parser) ->
+    stop(Parser, normal).
 
 %%--------------------------------------------------------------------
-parse(Content) ->
-    gen_server:call(?SERVER, {parse, Content}).
+stop(Parser, Reason) ->
+    gen_server:cast(Parser, {stop, Reason}).
+
+%%--------------------------------------------------------------------
+parse(Parser, Content) ->
+    gen_server:call(Parser, {parse, Content}).
 
 %%====================================================================
 %% Generic Server callbacks
 %%====================================================================
 
-init(_Args) ->
-    {ok, nostate}.
+init(Args) ->
+    Timeout = proplists:get_value(timeout, Args, 5000),
+    {ok, nostate, Timeout}.
 
 %%--------------------------------------------------------------------
 code_change(_OldVersion, State, _Extra) ->

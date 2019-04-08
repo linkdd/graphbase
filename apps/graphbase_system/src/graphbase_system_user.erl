@@ -12,8 +12,8 @@
 %% API
 %%====================================================================
 
-new(Conn, SystemGraph, Name) ->
-    User0 = graphbase_entity_node:new(Conn, <<"user_", Name/binary>>, SystemGraph),
+new(Conn, MetaGraph, Name) ->
+    User0 = graphbase_entity_node:new(Conn, <<"user_", Name/binary>>, MetaGraph),
     User1 = graphbase_entity_node:set_kind(User0, <<"user">>),
     graphbase_entity_obj:update(
         User1,

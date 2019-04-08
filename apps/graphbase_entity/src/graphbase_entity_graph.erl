@@ -86,7 +86,7 @@ del_nodes(Graph, []) ->
 %%--------------------------------------------------------------------
 get_edges(Graph) ->
     [graphbase_entity_obj:unref(graphbase_entity_obj:conn(Graph), Ref) || Ref <- proplists:get_value(
-        {<<"nodes">>, set},
+        {<<"edges">>, set},
         graphbase_entity_obj:value(Graph),
         []
     )].
@@ -100,7 +100,7 @@ filter_edges(Graph, Rules) ->
                 false -> ok
             end
         end,
-        fun(user, Edge, Result) ->
+        fun(edge, Edge, Result) ->
             {ok, [Edge | Result]}
         end,
         []

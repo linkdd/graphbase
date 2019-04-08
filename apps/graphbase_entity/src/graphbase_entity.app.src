@@ -5,6 +5,8 @@
     {applications, [
         kernel,
         stdlib,
+        emapred,
+        eid,
         graphbase_backend
     ]},
     {env, []},
