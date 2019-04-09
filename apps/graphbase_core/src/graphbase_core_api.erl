@@ -2,6 +2,7 @@
 
 %% API exports
 -export([
+    value/2,
     graph/2,
     nodes/2,
     edges/2
@@ -11,6 +12,29 @@
 %% API functions
 %%====================================================================
 
+value(_User, Arguments) ->
+    graphbase_backend_connection_pool:with(fun(Conn) ->
+        F = fun(Ref) ->
+            case graphbase_entity_obj:fetch(graphbase_entity_obj:unref(Conn, Ref)) of
+                {ok, Entity} ->
+                    Id = graphbase_entity_obj:id(Entity),
+                    Value = graphbase_entity_obj:value(Entity),
+                    [{{<<"$id">>, register}, Id} | Value];
+
+                Error ->
+                    throw(Error)
+            end
+        end,
+        try
+            [F(Ref) || Ref <- proplists:get_value(entities, Arguments, [])]
+        of
+            Result -> {ok, Result}
+        catch
+            _:Reason -> {error, {unable_to_get_value, Reason}}
+        end
+    end).
+
+%%--------------------------------------------------------------------
 graph(_User, Arguments) ->
     case proplists:get_value(id, Arguments) of
         undefined -> {error, {missing_argument, id}};
