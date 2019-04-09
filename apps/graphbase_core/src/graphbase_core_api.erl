@@ -2,61 +2,53 @@
 
 %% API exports
 -export([
-    debug/1,
-    list_users/1,
-    list_acls/1,
-    list_graphs/1
+    graph/2,
+    nodes/2,
+    edges/2
 ]).
 
 %%====================================================================
 %% API functions
 %%====================================================================
 
-debug(Arguments) ->
-    io:format("~p~n", [Arguments]),
-    {ok, debug}.
+graph(_User, Arguments) ->
+    case proplists:get_value(id, Arguments) of
+        undefined -> {error, {missing_argument, id}};
+        GraphId   ->
+            graphbase_backend_connection_pool:with(fun(Conn) ->
+                MetaGraph = graphbase_system_metagraph:new(Conn),
+                RequestedGraph = graphbase_system_graph:new(Conn, GraphId, MetaGraph),
+                {ok, GraphEntity} = graphbase_system_graph:entity(RequestedGraph),
+                {ok, graphbase_entity_obj:ref(GraphEntity)}
+            end)
+    end.
 
 %%--------------------------------------------------------------------
-list_users(_Arguments) ->
-    graphbase_backend_connection_pool:with(
-        fun(Conn) ->
-            MetaGraph = graphbase_system_metagraph:new(Conn),
-            Users = graphbase_system_metagraph:get_users(MetaGraph),
-            {ok, {nodes, [
-                #{
-                    id => graphbase_entity_obj:id(U),
-                    properties => graphbase_entity_obj:value(U)
-                } || U <- Users
-            ]}}
-        end
-    ).
+nodes(_User, Arguments) ->
+    case proplists:get_value(graph, Arguments) of
+        undefined -> {error, {missing_argument, graph}};
+        GraphRef  ->
+            graphbase_backend_connection_pool:with(fun(Conn) ->
+                Graph = graphbase_entity_obj:unref(Conn, GraphRef),
+                Rules = proplists:get_value(rules, Arguments, []),
+                {ok, [
+                    graphbase_entity_obj:ref(Node) ||
+                    Node <- graphbase_entity_graph:filter_nodes(Graph, Rules)
+                ]}
+            end)
+    end.
 
 %%--------------------------------------------------------------------
-list_acls(_Arguments) ->
-    graphbase_backend_connection_pool:with(
-        fun(Conn) ->
-            MetaGraph = graphbase_system_metagraph:new(Conn),
-            ACLs = graphbase_system_metagraph:get_acls(MetaGraph),
-            {ok, {edges, [
-                #{
-                    id => graphbase_entity_obj:id(U),
-                    properties => graphbase_entity_obj:value(U)
-                } || U <- ACLs
-            ]}}
-        end
-    ).
-
-%%--------------------------------------------------------------------
-list_graphs(_Arguments) ->
-    graphbase_backend_connection_pool:with(
-        fun(Conn) ->
-            MetaGraph = graphbase_system_metagraph:new(Conn),
-            Graphs = graphbase_system_metagraph:get_graphs(MetaGraph),
-            {ok, {nodes, [
-                #{
-                    id => graphbase_entity_obj:id(U),
-                    properties => graphbase_entity_obj:value(U)
-                } || U <- Graphs
-            ]}}
-        end
-    ).
+edges(_User, Arguments) ->
+    case proplists:get_value(graph, Arguments) of
+        undefined -> {error, {missing_argument, graph}};
+        GraphRef  ->
+            graphbase_backend_connection_pool:with(fun(Conn) ->
+                Graph = graphbase_entity_obj:unref(Conn, GraphRef),
+                Rules = proplists:get_value(rules, Arguments, []),
+                {ok, [
+                    graphbase_entity_obj:ref(Node) ||
+                    Node <- graphbase_entity_graph:filter_edges(Graph, Rules)
+                ]}
+            end)
+    end.

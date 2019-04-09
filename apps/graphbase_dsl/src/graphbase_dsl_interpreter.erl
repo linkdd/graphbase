@@ -9,8 +9,8 @@
 
 %% API
 -export([
-    start_link/0,
     start_link/1,
+    start_link/2,
     stop/1,
     stop/2,
     run/2
@@ -30,12 +30,12 @@
 %% API functions
 %%====================================================================
 
-start_link() ->
-    start_link([]).
+start_link(User) ->
+    start_link(User, []).
 
 %%--------------------------------------------------------------------
-start_link(Args) ->
-    gen_server:start_link(?MODULE, Args, []).
+start_link(User, Args) ->
+    gen_server:start_link(?MODULE, {User, Args}, []).
 
 %%--------------------------------------------------------------------
 stop(Interpreter) ->
@@ -53,90 +53,86 @@ run(Interpreter, AST) ->
 %% Generic Server callbacks
 %%====================================================================
 
-init(Args) ->
+init({User, Args}) ->
     Timeout = proplists:get_value(timeout, Args, 5000),
-    {ok, nostate, Timeout}.
+    {ok, User, Timeout}.
 
 %%--------------------------------------------------------------------
-code_change(_OldVersion, State, _Extra) ->
-    {ok, State}.
+code_change(_OldVersion, User, _Extra) ->
+    {ok, User}.
 
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, _User) ->
     ok.
 
 %%--------------------------------------------------------------------
-handle_info(timeout, State) ->
-    {stop, timeout, State};
+handle_info(timeout, User) ->
+    {stop, timeout, User};
 
-handle_info(_Info, State) ->
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-handle_call({stop, Reason}, _From, State) ->
-    {stop, Reason, ok, State};
-
-handle_call({run, AST}, _From, State) ->
-    {reply, execute(AST), State};
-
-handle_call(Request, _From, State) ->
-    {reply, {error, {invalid, Request}}, State}.
+handle_info(_Info, User) ->
+    {noreply, User}.
 
 %%--------------------------------------------------------------------
-handle_cast({stop, Reason}, State) ->
-    {stop, Reason, State}.
+handle_call({stop, Reason}, _From, User) ->
+    {stop, Reason, ok, User};
+
+handle_call({run, AST}, _From, User) ->
+    {reply, execute(User, AST), User};
+
+handle_call(Request, _From, User) ->
+    {reply, {error, {invalid, Request}}, User}.
+
+%%--------------------------------------------------------------------
+handle_cast({stop, Reason}, User) ->
+    {stop, Reason, User}.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-execute(AST) ->
-    execute(AST, dict:new(), dict:new()).
+execute(User, AST) ->
+    execute(User, AST, dict:new(), dict:new()).
 
 %%--------------------------------------------------------------------
-execute([Statement | Statements], Scope, Response) ->
-    case execute_statement(Statement, Scope, Response) of
+execute(User, [Statement | Statements], Scope, Response) ->
+    case execute_statement(User, Statement, Scope, Response) of
         {ok, NewScope, NewResponse} ->
-            execute(Statements, NewScope, NewResponse);
+            execute(User, Statements, NewScope, NewResponse);
         Error ->
             {error, {statement_error, Error}}
     end;
 
-execute([], _Scope, Response) ->
+execute(_User, [], _Scope, Response) ->
     {ok, dict:to_list(Response)}.
 
 %%--------------------------------------------------------------------
-execute_statement({assign, Name, Value}, Scope, Response) ->
-    case execute_assign(Name, Value, Scope) of
+execute_statement(User, {assign, Name, Value}, Scope, Response) ->
+    case execute_assign(User, Name, Value, Scope) of
         {ok, NewScope} -> {ok, NewScope, Response};
         Error          -> {error, {assign_failed, Error}}
     end;
 
-execute_statement({call, Function, Arguments}, Scope, Response) ->
-    case execute_call(Function, Arguments, Scope) of
+execute_statement(User, {call, Function, Arguments}, Scope, Response) ->
+    case graphbase_dsl_utils:call(User, Function, Arguments, Scope) of
         {ok, _} -> {ok, Scope, Response};
         Error   -> {error, {call_failed, Error}}
     end;
 
-execute_statement({yield, Name}, Scope, Response) ->
+execute_statement(_User, {yield, Name}, Scope, Response) ->
     {ok, Scope, execute_yield(Name, Scope, Response)}.
 
 %%--------------------------------------------------------------------
-execute_assign(Name, {constant, Value}, Scope) ->
+execute_assign(_User, Name, {constant, Value}, Scope) ->
     {ok, dict:store(Name, Value, Scope)};
 
-execute_assign(Name, {call, Function, Arguments}, Scope) ->
-    case execute_call(Function, Arguments, Scope) of
+execute_assign(User, Name, {call, Function, Arguments}, Scope) ->
+    case graphbase_dsl_utils:call(User, Function, Arguments, Scope) of
         {ok, Value} -> {ok, dict:store(Name, Value, Scope)};
         Error       -> {error, {call_failed, Error}}
     end;
 
-execute_assign(Name, {variable, VarName}, Scope) ->
+execute_assign(_User, Name, {variable, VarName}, Scope) ->
     {ok, dict:store(Name, dict:fetch(VarName, Scope), Scope)}.
-
-%%--------------------------------------------------------------------
-execute_call(Function, Arguments, Scope) ->
-    erlang:apply(graphbase_core_api, Function, [graphbase_dsl_utils:expand(Arguments, Scope)]).
 
 %%--------------------------------------------------------------------
 execute_yield(Name, Scope, Response) ->

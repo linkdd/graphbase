@@ -9,8 +9,8 @@
 
 %% API
 -export([
-    start_link/0,
     start_link/1,
+    start_link/2,
     stop/1,
     stop/2,
     interpret/2
@@ -32,12 +32,12 @@
 %% API functions
 %%====================================================================
 
-start_link() ->
-    start_link([]).
+start_link(User) ->
+    start_link(User, []).
 
 %%--------------------------------------------------------------------
-start_link(Args) ->
-    gen_server:start_link(?MODULE, Args, []).
+start_link(User, Args) ->
+    gen_server:start_link(?MODULE, {User, Args}, []).
 
 %%--------------------------------------------------------------------
 stop(API) ->
@@ -55,36 +55,36 @@ interpret(API, Request) ->
 %% Generic Server callbacks
 %%====================================================================
 
-init(Args) ->
+init({User, Args}) ->
     Timeout = proplists:get_value(timeout, Args, 5000),
-    {ok, nostate, Timeout}.
+    {ok, User, Timeout}.
 
 %%--------------------------------------------------------------------
-code_change(_OldVersion, State, _Extra) ->
-    {ok, State}.
+code_change(_OldVersion, User, _Extra) ->
+    {ok, User}.
 
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, _User) ->
     ok.
 
 %%--------------------------------------------------------------------
-handle_info(timeout, State) ->
-    {stop, timeout, State};
+handle_info(timeout, User) ->
+    {stop, timeout, User};
 
-handle_info(_Info, State) ->
-    {noreply, State}.
+handle_info(_Info, User) ->
+    {noreply, User}.
 
 %%--------------------------------------------------------------------
-handle_call({stop, Reason}, _From, State) ->
-    {stop, Reason, ok, State};
+handle_call({stop, Reason}, _From, User) ->
+    {stop, Reason, ok, User};
 
-handle_call({interpret, Request}, _From, State) ->
+handle_call({interpret, Request}, _From, User) ->
     Reply = graphbase_core:with(
         fun() -> graphbase_dsl_ast:start_link() end,
         fun(Parser) -> graphbase_dsl_ast:stop(Parser) end,
         fun(Parser) ->
             graphbase_core:with(
-                fun() -> graphbase_dsl_interpreter:start_link() end,
+                fun() -> graphbase_dsl_interpreter:start_link(User) end,
                 fun(Interpreter) -> graphbase_dsl_interpreter:stop(Interpreter) end,
                 fun(Interpreter) ->
                     case graphbase_dsl_ast:parse(Parser, Request) of
@@ -101,11 +101,11 @@ handle_call({interpret, Request}, _From, State) ->
             )
         end
     ),
-    {reply, Reply, State};
+    {reply, Reply, User};
 
-handle_call(Request, _From, State) ->
-    {reply, {error, {invalid, Request}}, State}.
+handle_call(Request, _From, User) ->
+    {reply, {error, {invalid, Request}}, User}.
 
 %%--------------------------------------------------------------------
-handle_cast({stop, Reason}, State) ->
-    {stop, Reason, State}.
+handle_cast({stop, Reason}, User) ->
+    {stop, Reason, User}.
