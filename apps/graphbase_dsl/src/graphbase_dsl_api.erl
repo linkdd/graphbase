@@ -90,12 +90,12 @@ handle_call({interpret, Request}, _From, User) ->
                     case graphbase_dsl_ast:parse(Parser, Request) of
                         {ok, AST} ->
                             case graphbase_dsl_interpreter:run(Interpreter, AST) of
-                                {ok, Response} -> {ok, Response};
-                                Error          -> {error, {unable_to_interpret, Error}}
+                                {ok, Response}  -> {ok, Response};
+                                {error, Reason} -> {error, {unable_to_interpret, Reason}}
                             end;
                         
-                        Error ->
-                            {error, {unable_to_parse, Error}}
+                        {error, Reason} ->
+                            {error, {unable_to_parse, Reason}}
                     end
                 end
             )

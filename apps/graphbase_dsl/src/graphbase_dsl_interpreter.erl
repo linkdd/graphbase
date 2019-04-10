@@ -96,10 +96,8 @@ execute(User, AST) ->
 %%--------------------------------------------------------------------
 execute(User, [Statement | Statements], Scope, Response) ->
     case execute_statement(User, Statement, Scope, Response) of
-        {ok, NewScope, NewResponse} ->
-            execute(User, Statements, NewScope, NewResponse);
-        Error ->
-            {error, {statement_error, Error}}
+        {ok, NewScope, NewResponse} -> execute(User, Statements, NewScope, NewResponse);
+        {error, Reason}             -> {error, {statement_error, Reason}}
     end;
 
 execute(_User, [], _Scope, Response) ->
@@ -108,14 +106,14 @@ execute(_User, [], _Scope, Response) ->
 %%--------------------------------------------------------------------
 execute_statement(User, {assign, Name, Value}, Scope, Response) ->
     case execute_assign(User, Name, Value, Scope) of
-        {ok, NewScope} -> {ok, NewScope, Response};
-        Error          -> {error, {assign_failed, Error}}
+        {ok, NewScope}  -> {ok, NewScope, Response};
+        {error, Reason} -> {error, {assign_failed, Name, Reason}}
     end;
 
 execute_statement(User, {call, Function, Arguments}, Scope, Response) ->
     case graphbase_dsl_utils:call(User, Function, Arguments, Scope) of
-        {ok, _} -> {ok, Scope, Response};
-        Error   -> {error, {call_failed, Error}}
+        {ok, _}         -> {ok, Scope, Response};
+        {error, Reason} -> {error, {call_failed, {Function, Arguments}, Reason}}
     end;
 
 execute_statement(_User, {yield, Name}, Scope, Response) ->
@@ -127,8 +125,8 @@ execute_assign(_User, Name, {constant, Value}, Scope) ->
 
 execute_assign(User, Name, {call, Function, Arguments}, Scope) ->
     case graphbase_dsl_utils:call(User, Function, Arguments, Scope) of
-        {ok, Value} -> {ok, dict:store(Name, Value, Scope)};
-        Error       -> {error, {call_failed, Error}}
+        {ok, Value}     -> {ok, dict:store(Name, Value, Scope)};
+        {error, Reason} -> {error, {call_failed, {Function, Arguments}, Reason}}
     end;
 
 execute_assign(_User, Name, {variable, VarName}, Scope) ->

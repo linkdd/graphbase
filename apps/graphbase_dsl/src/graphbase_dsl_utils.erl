@@ -29,8 +29,8 @@ expand(User, [{Key, {constant, Value}} | Properties], Scope, Acc) ->
 
 expand(User, [{Key, {call, Function, Arguments}} | Properties], Scope, Acc) ->
     case call(User, Function, Arguments, Scope) of
-        {ok, Value} -> expand(User, Properties, Scope, [{Key, Value} | Acc]);
-        Error       -> {error, {call_failed, Error}}
+        {ok, Value}     -> expand(User, Properties, Scope, [{Key, Value} | Acc]);
+        {error, Reason} -> {error, {call_failed, {Function, Arguments}, Reason}}
     end;
 
 expand(_User, [], _Scope, Acc) ->

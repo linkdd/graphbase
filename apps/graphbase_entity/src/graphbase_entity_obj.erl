@@ -62,10 +62,8 @@ unref(Conn, Ref) ->
 %%--------------------------------------------------------------------
 fetch(Entity = #entity{conn = Conn, id = Id, type = Type}) ->
     case graphbase_backend_connection:fetch_type(Conn, bucket_for_type(Type), Id) of
-        {ok, Data} ->
-            {ok, with_data(Entity, Data)};
-        Error ->
-            {error, {unable_to_fetch, Error}}
+        {ok, Data}      -> {ok, with_data(Entity, Data)};
+        {error, Reason} -> {error, {unable_to_fetch, Reason}}
     end.
 
 %%--------------------------------------------------------------------
@@ -79,16 +77,16 @@ save(Entity = #entity{conn = Conn, id = Id, type = Type, data = Data}) ->
                     {ok, with_data(Entity, NewData)};
                 {error, unmodified} ->
                     {ok, Entity};
-                Error ->
-                    {error, {unable_to_save, Error}}
+                {error, Reason} ->
+                    {error, {unable_to_save, Reason}}
             end
     end.
 
 %%--------------------------------------------------------------------
 delete(#entity{conn = Conn, id = Id, type = Type}) ->
     case graphbase_backend_connection:delete(Conn, bucket_for_type(Type), Id) of
-        ok    -> ok;
-        Error -> {error, {unable_to_delete, Error}}
+        ok              -> ok;
+        {error, Reason} -> {error, {unable_to_delete, Reason}}
     end.
 
 %%--------------------------------------------------------------------
