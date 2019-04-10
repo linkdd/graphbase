@@ -5,7 +5,8 @@
     value/2,
     graph/2,
     nodes/2,
-    edges/2
+    edges/2,
+    filter/2
 ]).
 
 %%====================================================================
@@ -14,6 +15,10 @@
 
 value(_User, Arguments) ->
     Entities = proplists:get_value(entities, Arguments, []),
+    EntitySet = case is_list(Entities) of
+        true  -> Entities;
+        false -> [Entities]
+    end,
     graphbase_backend_connection_pool:with(fun(Conn) ->
         F = fun(Ref) ->
             case graphbase_entity_obj:fetch(graphbase_entity_obj:unref(Conn, Ref)) of
@@ -27,12 +32,12 @@ value(_User, Arguments) ->
             end
         end,
         try
-            [F(Ref) || Ref <- Entities]
+            [F(Ref) || Ref <- EntitySet]
         of
             Result ->
                 case is_list(Entities) of
                     true  -> {ok, Result};
-                    false -> {ok, lists:nth(0, Result)}
+                    false -> {ok, lists:nth(1, Result)}
                 end
         catch
             _:Reason -> {error, {unable_to_get_value, Reason}}
@@ -99,6 +104,33 @@ edges(User, Arguments) ->
                 end
             end)
     end.
+
+filter(_User, Arguments) ->
+    graphbase_backend_connection_pool:with(fun(Conn) ->
+        Entities = proplists:get_value(entities, Arguments, []),
+        Rules = proplists:get_value(rules, Arguments, []),
+        {ok, P} = emapred_pipeline:new(
+            fun(Ref) ->
+                Entity = graphbase_entity_obj:unref(Conn, Ref),
+                case graphbase_core_filter:match(Rules, graphbase_entity_obj:value(Entity)) of
+                    true  -> {emit, {entity, Ref}};
+                    false -> ok
+                end
+            end,
+            fun(entity, Ref, Result) ->
+                {ok, [Ref | Result]}
+            end,
+            []
+        ),
+        lists:foreach(
+            fun(Entity) ->
+                ok = emapred_pipeline:send(P, Entity),
+                ok
+            end,
+            Entities
+        ),
+        {ok, emapred_pipeline:stop(P)}
+    end).
 
 %%====================================================================
 %% Internal functions
