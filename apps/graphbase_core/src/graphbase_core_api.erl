@@ -35,7 +35,7 @@ value(_User, Arguments) ->
     end).
 
 %%--------------------------------------------------------------------
-graph(_User, Arguments) ->
+graph(User, Arguments) ->
     case proplists:get_value(id, Arguments) of
         undefined -> {error, {missing_argument, id}};
         GraphId   ->
@@ -43,36 +43,65 @@ graph(_User, Arguments) ->
                 MetaGraph = graphbase_system_metagraph:new(Conn),
                 RequestedGraph = graphbase_system_graph:new(Conn, GraphId, MetaGraph),
                 {ok, GraphEntity} = graphbase_system_graph:entity(RequestedGraph),
-                {ok, graphbase_entity_obj:ref(GraphEntity)}
+
+                case can_access(Conn, User, GraphEntity, read) of
+                    true  -> {ok, graphbase_entity_obj:ref(GraphEntity)};
+                    false -> {error, {unauthorized, read}}
+                end
             end)
     end.
 
 %%--------------------------------------------------------------------
-nodes(_User, Arguments) ->
+nodes(User, Arguments) ->
     case proplists:get_value(graph, Arguments) of
         undefined -> {error, {missing_argument, graph}};
         GraphRef  ->
             graphbase_backend_connection_pool:with(fun(Conn) ->
                 Graph = graphbase_entity_obj:unref(Conn, GraphRef),
                 Rules = proplists:get_value(rules, Arguments, []),
-                {ok, [
-                    graphbase_entity_obj:ref(Node) ||
-                    Node <- graphbase_entity_graph:filter_nodes(Graph, Rules)
-                ]}
+
+                case can_access(Conn, User, Graph, read) of
+                    true ->
+                        {ok, [
+                            graphbase_entity_obj:ref(Node) ||
+                            Node <- graphbase_entity_graph:filter_nodes(Graph, Rules)
+                        ]};
+
+                    false ->
+                        {error, {unauthorized, read}}
+                end
             end)
     end.
 
 %%--------------------------------------------------------------------
-edges(_User, Arguments) ->
+edges(User, Arguments) ->
     case proplists:get_value(graph, Arguments) of
         undefined -> {error, {missing_argument, graph}};
         GraphRef  ->
             graphbase_backend_connection_pool:with(fun(Conn) ->
                 Graph = graphbase_entity_obj:unref(Conn, GraphRef),
                 Rules = proplists:get_value(rules, Arguments, []),
-                {ok, [
-                    graphbase_entity_obj:ref(Node) ||
-                    Node <- graphbase_entity_graph:filter_edges(Graph, Rules)
-                ]}
+
+                case can_access(Conn, User, Graph, read) of
+                    true ->
+                        {ok, [
+                            graphbase_entity_obj:ref(Node) ||
+                            Node <- graphbase_entity_graph:filter_edges(Graph, Rules)
+                        ]};
+
+                    false ->
+                        {error, {unauthorized, read}}
+                end
             end)
     end.
+
+%%====================================================================
+%% Internal functions
+%%====================================================================
+
+can_access(Conn, User, Graph, Access) ->
+    MetaGraph = graphbase_system_metagraph:new(Conn),
+    ACL = graphbase_system_acl:new(Conn, MetaGraph, User, Access),
+    GraphId = graphbase_entity_obj:id(Graph),
+    GraphRef = graphbase_system_graph:new(Conn, GraphId, MetaGraph),
+    graphbase_system_acl:has(ACL, GraphRef).
