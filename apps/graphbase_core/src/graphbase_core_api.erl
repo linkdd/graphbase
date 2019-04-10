@@ -13,6 +13,7 @@
 %%====================================================================
 
 value(_User, Arguments) ->
+    Entities = proplists:get_value(entities, Arguments, []),
     graphbase_backend_connection_pool:with(fun(Conn) ->
         F = fun(Ref) ->
             case graphbase_entity_obj:fetch(graphbase_entity_obj:unref(Conn, Ref)) of
@@ -26,9 +27,13 @@ value(_User, Arguments) ->
             end
         end,
         try
-            [F(Ref) || Ref <- proplists:get_value(entities, Arguments, [])]
+            [F(Ref) || Ref <- Entities]
         of
-            Result -> {ok, Result}
+            Result ->
+                case is_list(Entities) of
+                    true  -> {ok, Result};
+                    false -> {ok, lists:nth(0, Result)}
+                end
         catch
             _:Reason -> {error, {unable_to_get_value, Reason}}
         end
