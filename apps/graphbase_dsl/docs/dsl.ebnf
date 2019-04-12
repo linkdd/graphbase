@@ -1,0 +1,84 @@
+pipeline
+    = statement { "," statement } "."
+    ;
+
+statement
+    = assign
+    | yield
+    | function_call
+    ;
+
+assign
+    = variable_name "=" expression
+    ;
+
+yield
+    = "yield" "(" variable_name ")"
+    ;
+
+function_call
+    = identifier "(" [ function_param { "," function_param } ] ")"
+    ;
+
+function_param
+    = identifier "=" expression
+    ;
+
+identifier
+    = /[a-z][a-zA-Z0-9_]+/
+    ;
+
+expression
+    = variable_name
+    | constant
+    | function_call
+    ;
+
+variable_name
+    = /[A-Z][a-zA-Z0-9_]+/
+    ;
+
+constant
+    = boolean
+    | integer
+    | decimal
+    | string
+    | list
+    | tuple
+    ;
+
+boolean
+    = "true"
+    | "false"
+    ;
+
+integer
+    = [ "-" ] digits
+    ;
+
+decimal
+    = integer "." digits
+    ;
+
+digits
+    = /\d+/
+    ;
+
+string
+    = '"' /\w*/ '"'
+    ;
+
+list
+    = "[" [ element { "," element } ] "]"
+    ;
+
+tuple
+    = "{" [ element { "," element } ] "}"
+    ;
+
+element
+    = identifier
+    | variable_name
+    | constant
+    | function_call
+    ;

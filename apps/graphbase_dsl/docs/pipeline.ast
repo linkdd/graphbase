@@ -1,0 +1,32 @@
+[
+	{assign, graph, {call, graph, [
+		{id, {constant, <<"system">>}}
+	]}},
+	{assign, users, {call, value, [
+		{entities, {call, nodes, [
+			{graph, {variable, graph}},
+			{rules, {constant, [
+				{property, {<<"kind">>, register}, {eq, <<"user">>}}
+			]}}
+		]}}
+	]}},
+	{assign, acls, {call, value, [
+		{entities, {call, filter, [
+			{entities, {call, edges, [
+				{graph, {variable, graph}},
+				{rules, {constant, [
+					{property, {<<"relationship">>, register}, {eq, <<"acl">>}}
+				]}}
+			]}},
+			{rules, {constant, [
+				{property, {<<"access">>, register}, {eq, <<"write">>}}
+			]}}
+		]}}
+	]}},
+	{assign, graph, {call, value, [
+		{entities, {variable, graph}}
+	]}},
+	{yield, users},
+	{yield, acls},
+	{yield, graph}
+].

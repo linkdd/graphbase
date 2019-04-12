@@ -1,0 +1,22 @@
+Graph = graph(id="system"),
+Users = value(entities=nodes(
+    graph=Graph,
+    rules=[
+        {property, {"kind", register}, {eq, "user"}}
+    ]
+)),
+ACLs = value(entities=filter(
+    entities=edges(
+        graph=Graph,
+        rules=[
+            {property, {"relationship", register}, {eq, "acl"}}
+        ]
+    ),
+    rules=[
+        {property, {"access", register}, {eq, "write"}}
+    ]
+)),
+Graph = value(entities=Graph),
+yield(Users),
+yield(ACLs),
+yield(Graph).
