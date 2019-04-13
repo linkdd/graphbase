@@ -52,9 +52,9 @@
 lex(Code0) ->
     R = rule(pipeline),
     case R(string:trim(Code0)) of
-        {match, Tokens, ""} -> {match, Tokens};
-        {nomatch, R}        -> {error, {nomatch, R}};
-        {match, _, Code1}   -> {error, {unexpected_code, string:trim(Code1)}}
+        {match, Tokens, <<>>} -> {match, Tokens};
+        {match, _, Code1}     -> {error, {unexpected_code, string:trim(Code1)}};
+        {nomatch, Reason}     -> {error, {nomatch, Reason}}
     end.
 
 %%====================================================================
@@ -95,14 +95,17 @@ group(Code, Rules) ->
     group(Code, Rules, []).
 
 %%--------------------------------------------------------------------
-one_of(Code, [Rule | Rules]) ->
-    case Rule(Code) of
-        {nomatch, _} -> one_of(Code, Rules);
+one_of(Code, Rules) ->
+    one_of(Code, Rules, []).
+
+one_of(Code, [Rule | Rules], Acc) ->
+        case Rule(Code) of
+        {nomatch, E} -> one_of(Code, Rules, Acc ++ [E]);
         R            -> R
     end;
 
-one_of(_Code, []) ->
-    {nomatch, unexpected_token}.
+one_of(_Code, [], Acc) ->
+    {nomatch, {expected, Acc}}.
 
 %%--------------------------------------------------------------------
 token(Code0, Name, String) ->
@@ -153,12 +156,12 @@ pipeline(Code) ->
 
 %%--------------------------------------------------------------------
 pipeline_separator(Code) ->
-    R = rule(token, [pipeline_separator, ","]),
+    R = rule(token, [pipeline_separator, <<",">>]),
     R(Code).
 
 %%--------------------------------------------------------------------
 pipeline_end(Code) ->
-    R = rule(token, [pipeline_end, "."]),
+    R = rule(token, [pipeline_end, <<".">>]),
     R(Code).
 
 %%--------------------------------------------------------------------
@@ -176,7 +179,7 @@ assign(Code) ->
         rule(whitespace),
         rule(variable_name),
         rule(whitespace),
-        rule(token, [assign_operator, "="]),
+        rule(token, [assign_operator, <<"=">>]),
         rule(whitespace),
         rule(expression)
     ]]),
@@ -186,7 +189,7 @@ assign(Code) ->
 yield(Code) ->
     R = rule(group, [[
         rule(whitespace),
-        rule(token, [yield, "yield"]),
+        rule(token, [yield, <<"yield">>]),
         rule(whitespace),
         rule(left_parenthesis),
         rule(whitespace),
@@ -212,7 +215,7 @@ function_call(Code) ->
                 rule(zero_or_more, [
                     rule(group, [[
                         rule(whitespace),
-                        rule(token, [function_param_separator, ","]),
+                        rule(token, [function_param_separator, <<",">>]),
                         rule(whitespace),
                         rule(function_param)
                     ]])
@@ -230,7 +233,7 @@ function_param(Code) ->
         rule(whitespace),
         rule(identifier),
         rule(whitespace),
-        rule(token, [assign_operator, "="]),
+        rule(token, [assign_operator, <<"=">>]),
         rule(whitespace),
         rule(expression)
     ]]),
@@ -259,8 +262,8 @@ variable_name(Code) ->
 constant(Code) ->
     R = rule(one_of, [[
         rule(boolean),
-        rule(integer),
         rule(decimal),
+        rule(integer),
         rule(string),
         rule(list),
         rule(tuple)
@@ -270,15 +273,15 @@ constant(Code) ->
 %%--------------------------------------------------------------------
 boolean(Code) ->
     one_of(Code, [
-        rule(token, [true, "true"]),
-        rule(token, [false, "false"])
+        rule(token, [true, <<"true">>]),
+        rule(token, [false, <<"false">>])
     ]).
 
 %%--------------------------------------------------------------------
 integer(Code) ->
     R = rule(group, [[
         rule(zero_or_one, [
-            rule(token, [sign, "-"])
+            rule(token, [sign, <<"-">>])
         ]),
         rule(whitespace),
         rule(digits)
@@ -290,23 +293,21 @@ decimal(Code) ->
     R = rule(group, [[
         rule(whitespace),
         rule(integer),
-        rule(token, [floating_point, "."]),
+        rule(token, [floating_point, <<".">>]),
         rule(digits)
     ]]),
     R(Code).
 
 %%--------------------------------------------------------------------
 digits(Code) ->
-    R = rule(token_regex, [digits, "\d+"]),
+    R = rule(token_regex, [digits, "[0-9]+"]),
     R(Code).
 
 %%--------------------------------------------------------------------
 string(Code) ->
     R = rule(group, [[
         rule(whitespace),
-        rule(token, [string_begin, "\""]),
-        rule(token_regex, [string_data, "\w*"]),
-        rule(token, [string_end, "\""])
+        rule(token_regex, [data, "\"(?:[^\"])*\""])
     ]]),
     R(Code).
 
@@ -324,7 +325,7 @@ list(Code) ->
                 rule(zero_or_more, [
                     rule(group, [[
                         rule(whitespace),
-                        rule(token, [list_separator, ","]),
+                        rule(token, [list_separator, <<",">>]),
                         rule(whitespace),
                         rule(element)
                     ]])
@@ -351,7 +352,7 @@ tuple(Code) ->
                 rule(zero_or_more, [
                     rule(group, [[
                         rule(whitespace),
-                        rule(token, [tuple_separator, ","]),
+                        rule(token, [tuple_separator, <<",">>]),
                         rule(whitespace),
                         rule(element)
                     ]])
@@ -367,46 +368,68 @@ tuple(Code) ->
 element(Code) ->
     R = rule(one_of, [[
         rule(identifier),
-        rule(variable_name),
-        rule(constant),
-        rule(function_call)
+        rule(boolean),
+        rule(decimal),
+        rule(integer),
+        rule(string),
+        rule(list),
+        rule(tuple)
     ]]),
     R(Code).
 
 %%--------------------------------------------------------------------
 left_parenthesis(Code) ->
-    R = rule(token, [left_parenthesis, "("]),
+    R = rule(token, [left_parenthesis, <<"(">>]),
     R(Code).
 
 %%--------------------------------------------------------------------
 right_parenthesis(Code) ->
-    R = rule(token, [right_parenthesis, ")"]),
+    R = rule(token, [right_parenthesis, <<")">>]),
     R(Code).
 
 %%--------------------------------------------------------------------
 left_bracket(Code) ->
-    R = rule(token, [left_bracket, "["]),
+    R = rule(token, [left_bracket, <<"[">>]),
     R(Code).
 
 %%--------------------------------------------------------------------
 right_bracket(Code) ->
-    R = rule(token, [right_bracket, "]"]),
+    R = rule(token, [right_bracket, <<"]">>]),
     R(Code).
 
 %%--------------------------------------------------------------------
 left_brace(Code) ->
-    R = rule(token, [left_brace, "{"]),
+    R = rule(token, [left_brace, <<"{">>]),
     R(Code).
 
 %%--------------------------------------------------------------------
 right_brace(Code) ->
-    R = rule(token, [right_brace, "}"]),
+    R = rule(token, [right_brace, <<"}">>]),
     R(Code).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
+named_rules() ->
+    [
+        pipeline,
+        assign,
+        yield,
+        function_call,
+        function_param,
+        expression,
+        constant,
+        boolean,
+        decimal,
+        integer,
+        string,
+        list,
+        tuple,
+        element
+    ].
+
+%%--------------------------------------------------------------------
 check_rule(Code, Name) ->
     check_rule(Code, Name, []).
 
@@ -415,8 +438,12 @@ check_rule(Code0, Name, Args) ->
     try
         erlang:apply(?MODULE, Name, [Code0 | Args])
     of
-        {match, Tokens, Code1} -> {match, Tokens, Code1};
-        {nomatch, R}           -> {nomatch, {Name, R}}
+        {nomatch, R}           -> {nomatch, {Name, R}};
+        {match, Tokens, Code1} ->
+            case lists:member(Name, named_rules()) of
+                true  -> {match, [{Name, Tokens}], Code1};
+                false -> {match, Tokens, Code1}
+            end
     catch
         error:{badmatch, R} -> {nomatch, {Name, R}}
     end.

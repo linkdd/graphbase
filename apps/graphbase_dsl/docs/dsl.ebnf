@@ -78,7 +78,10 @@ tuple
 
 element
     = identifier
-    | variable_name
-    | constant
-    | function_call
+    | boolean
+    | integer
+    | decimal
+    | string
+    | list
+    | tuple
     ;

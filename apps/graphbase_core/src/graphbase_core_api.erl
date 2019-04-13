@@ -14,7 +14,7 @@
 %%====================================================================
 
 value(_User, Arguments) ->
-    Entities = proplists:get_value(entities, Arguments, []),
+    Entities = get_argument(entities, Arguments, []),
     EntitySet = case is_list(Entities) of
         true  -> Entities;
         false -> [Entities]
@@ -46,7 +46,7 @@ value(_User, Arguments) ->
 
 %%--------------------------------------------------------------------
 graph(User, Arguments) ->
-    case proplists:get_value(id, Arguments) of
+    case get_argument(id, Arguments) of
         undefined -> {error, {missing_argument, id}};
         GraphId   ->
             graphbase_backend_connection_pool:with(fun(Conn) ->
@@ -63,12 +63,12 @@ graph(User, Arguments) ->
 
 %%--------------------------------------------------------------------
 nodes(User, Arguments) ->
-    case proplists:get_value(graph, Arguments) of
+    case get_argument(graph, Arguments) of
         undefined -> {error, {missing_argument, graph}};
         GraphRef  ->
             graphbase_backend_connection_pool:with(fun(Conn) ->
                 Graph = graphbase_entity_obj:unref(Conn, GraphRef),
-                Rules = proplists:get_value(rules, Arguments, []),
+                Rules = get_argument(rules, Arguments, []),
 
                 case can_access(Conn, User, Graph, read) of
                     true ->
@@ -85,12 +85,12 @@ nodes(User, Arguments) ->
 
 %%--------------------------------------------------------------------
 edges(User, Arguments) ->
-    case proplists:get_value(graph, Arguments) of
+    case get_argument(graph, Arguments) of
         undefined -> {error, {missing_argument, graph}};
         GraphRef  ->
             graphbase_backend_connection_pool:with(fun(Conn) ->
                 Graph = graphbase_entity_obj:unref(Conn, GraphRef),
-                Rules = proplists:get_value(rules, Arguments, []),
+                Rules = get_argument(rules, Arguments, []),
 
                 case can_access(Conn, User, Graph, read) of
                     true ->
@@ -105,10 +105,11 @@ edges(User, Arguments) ->
             end)
     end.
 
+%%--------------------------------------------------------------------
 filter(_User, Arguments) ->
     graphbase_backend_connection_pool:with(fun(Conn) ->
-        Entities = proplists:get_value(entities, Arguments, []),
-        Rules = proplists:get_value(rules, Arguments, []),
+        Entities = get_argument(entities, Arguments, []),
+        Rules = get_argument(rules, Arguments, []),
         {ok, P} = emapred_pipeline:new(
             fun(Ref) ->
                 Entity = graphbase_entity_obj:unref(Conn, Ref),
@@ -142,3 +143,12 @@ can_access(Conn, User, Graph, Access) ->
     GraphId = graphbase_entity_obj:id(Graph),
     GraphRef = graphbase_system_graph:new(Conn, GraphId, MetaGraph),
     graphbase_system_acl:has(ACL, GraphRef).
+
+%%--------------------------------------------------------------------
+get_argument(Name, Arguments) ->
+    get_argument(Name, Arguments, undefined).
+
+%%--------------------------------------------------------------------
+get_argument(Name, Arguments, Default) ->
+    proplists:get_value(list_to_binary(atom_to_list(Name)), Arguments, Default).
+

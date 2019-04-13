@@ -5,91 +5,160 @@
 
 -module(graphbase_dsl_ast).
 
--behaviour(gen_server).
-
 %% API
 -export([
-    start_link/0,
-    start_link/1,
-    stop/1,
-    stop/2,
-    parse/2
-]).
-
-%% Generic server callbacks
--export([
-    init/1,
-    code_change/3,
-    terminate/2,
-    handle_info/2,
-    handle_call/3,
-    handle_cast/2
+    parse/1
 ]).
 
 %%====================================================================
 %% API functions
 %%====================================================================
 
-start_link() ->
-    start_link([]).
-
-%%--------------------------------------------------------------------
-start_link(Args) ->
-    gen_server:start_link(?MODULE, Args, []).
-
-%%--------------------------------------------------------------------
-stop(Parser) ->
-    stop(Parser, normal).
-
-%%--------------------------------------------------------------------
-stop(Parser, Reason) ->
-    gen_server:cast(Parser, {stop, Reason}).
-
-%%--------------------------------------------------------------------
-parse(Parser, Content) ->
-    gen_server:call(Parser, {parse, Content}).
-
-%%====================================================================
-%% Generic Server callbacks
-%%====================================================================
-
-init(Args) ->
-    Timeout = proplists:get_value(timeout, Args, 5000),
-    {ok, nostate, Timeout}.
-
-%%--------------------------------------------------------------------
-code_change(_OldVersion, State, _Extra) ->
-    {ok, State}.
-
-%%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
-    ok.
-
-%%--------------------------------------------------------------------
-handle_info(timeout, State) ->
-    {stop, timeout, State};
-
-handle_info(_Info, State) ->
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-handle_call({stop, Reason}, _From, State) ->
-    {stop, Reason, ok, State};
-
-handle_call({parse, Content}, _From, State) ->
-    {reply, handle_parse(Content), State};
-
-handle_call(Request, _From, State) ->
-    {reply, {error, {invalid, Request}}, State}.
-
-%%--------------------------------------------------------------------
-handle_cast({stop, Reason}, State) ->
-    {stop, Reason, State}.
+parse(Content) ->
+    {match, Tokens} = graphbase_dsl_lexer:lex(Content),
+    walk(Tokens).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-handle_parse(Content) ->
-    {ok, Tokens, _} = erl_scan:string(Content),
-    erl_parse:parse_term(Tokens).
+walk([{pipeline, Tokens}]) ->
+    [{pipeline_end, _} | Statements] = lists:reverse(Tokens),
+    walk(lists:reverse(Statements));
+
+walk([{pipeline_separator, _} | Tokens]) ->
+    walk(Tokens);
+
+walk([{assign, AssignTokens} | Tokens]) ->
+    [
+        {variable_name, VarName},
+        {assign_operator, _},
+        {expression, Expression}
+    ] = AssignTokens,
+    [{assign, VarName, walk(Expression)} | walk(Tokens)];
+
+walk([{yield, YieldTokens} | Tokens]) ->
+    [
+        {yield, _},
+        {left_parenthesis, _},
+        {variable_name, VarName},
+        {right_parenthesis, _}
+    ] = YieldTokens,
+    [{yield, VarName} | walk(Tokens)];
+
+walk([{function_call, CallTokens} | Tokens]) ->
+    [
+        {identifier, Identifier},
+        {left_parenthesis, _} |
+        TrailingTokens
+    ] = CallTokens,
+    [{right_parenthesis, _} | ParametersTokens] = lists:reverse(TrailingTokens),
+    Parameters = walk(ParametersTokens),
+    [{call, to_identifier(Identifier), Parameters} | walk(Tokens)];
+
+walk([{function_param, ParamTokens} | Tokens]) ->
+    [
+        {identifier, Identifier},
+        {assign_operator, _},
+        {expression, Expression}
+    ] = ParamTokens,
+    [{to_identifier(Identifier), walk(Expression)} | walk(Tokens)];
+
+walk([{function_param_separator, _} | Tokens]) ->
+    walk(Tokens);
+
+walk([{identifier, Identifier}]) ->
+    to_identifier(Identifier);
+
+walk([{expression, ExpressionTokens}]) ->
+    walk(ExpressionTokens);
+
+walk([{variable_name, VarName}]) ->
+    {variable, VarName};
+
+walk([{constant, ConstantTokens}]) ->
+    {constant, walk(ConstantTokens)};
+
+walk([{boolean, [{Value, _}]}]) ->
+    Value;
+
+walk([{integer, [{digits, Digits}]}]) ->
+    list_to_integer(binary_to_list(Digits));
+
+walk([{integer, [{sign, Sign}, {digits, Digits}]}]) ->
+    list_to_integer(binary_to_list(<<Sign/binary, Digits/binary>>));
+
+walk([{decimal, [{integer, [{digits, Int}]}, {floating_point, FP}, {digits, Real}]}]) ->
+    Decimal = <<Int/binary, FP/binary, Real/binary>>,
+    {F, _} = string:to_float(binary_to_list(Decimal)),
+    F;
+
+walk([{decimal, [{integer, [{sign, Sign}, {digits, Int}]}, {floating_point, FP}, {digits, Real}]}]) ->
+    Decimal = <<Sign/binary, Int/binary, FP/binary, Real/binary>>,
+    {F, _} = string:to_float(binary_to_list(Decimal)),
+    F;
+
+walk([{string, [{data, String}]}]) ->
+    string:trim(String, both, "\"");
+
+walk([{list, Tokens}]) ->
+    [{left_bracket, _} | TrailingTokens] = Tokens,
+    [{right_bracket, _} | Elements] = lists:reverse(TrailingTokens),
+    walk(lists:reverse(Elements));
+
+walk([{tuple, Tokens}]) ->
+    [{left_brace, _} | TrailingTokens] = Tokens,
+    [{right_brace, _} | Elements] = lists:reverse(TrailingTokens),
+    list_to_tuple(walk(lists:reverse(Elements)));
+
+walk([{element, Element} | Tokens]) ->
+    [walk(Element) | walk(Tokens)];
+
+walk([{list_separator, _} | Tokens]) ->
+    walk(Tokens);
+
+walk([{tuple_separator, _} | Tokens]) ->
+    walk(Tokens);
+
+walk([]) ->
+    [].
+
+%%--------------------------------------------------------------------
+to_identifier(Identifier) ->
+    case lists:member(Identifier, keywords()) of
+        true  -> list_to_atom(binary_to_list(Identifier));
+        false ->
+            T = fun(A) -> list_to_binary(atom_to_list(A)) end,
+            Exports = [T(Name) || {Name, _} <- proplists:get_value(exports, graphbase_core_api:module_info())],
+            ExportFilter = fun(Export) ->
+                case Export of
+                    module_info -> false;
+                    _           -> true
+                end
+            end,
+            Functions = lists:filter(ExportFilter, Exports),
+            case lists:member(Identifier, Functions) of
+                true  -> list_to_atom(binary_to_list(Identifier));
+                false -> Identifier
+            end
+    end.
+
+%%--------------------------------------------------------------------
+keywords() ->
+    [
+        <<"empty">>,
+        <<"property">>,
+        <<"eq">>,
+        <<"ne">>,
+        <<"gt">>,
+        <<"gte">>,
+        <<"lt">>,
+        <<"lte">>,
+        <<"re">>,
+        <<"match">>,
+        <<"register">>,
+        <<"flag">>,
+        <<"counter">>,
+        <<"map">>,
+        <<"set">>
+    ].
