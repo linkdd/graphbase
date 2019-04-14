@@ -13,11 +13,11 @@
 %%====================================================================
 
 new(Conn, Graph) ->
-    graphbase_entity_obj:new(Conn, type(Graph)).
+    graphbase_entity_scope:set_graph(graphbase_entity_obj:new(Conn, type(Graph)), Graph).
 
 %%--------------------------------------------------------------------
 new(Conn, Id, Graph) ->
-    graphbase_entity_obj:new(Conn, Id, type(Graph)).
+    graphbase_entity_scope:set_graph(graphbase_entity_obj:new(Conn, Id, type(Graph)), Graph).
 
 %%--------------------------------------------------------------------
 kind(Node) ->

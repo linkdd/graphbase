@@ -79,8 +79,8 @@ tuple
 element
     = identifier
     | boolean
-    | integer
     | decimal
+    | integer
     | string
     | list
     | tuple

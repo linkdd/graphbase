@@ -1,4 +1,4 @@
--module(graphbase_system_metagraph).
+-module(graphbase_metagraph).
 
 %% API
 -export([

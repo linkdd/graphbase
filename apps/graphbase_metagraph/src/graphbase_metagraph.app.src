@@ -1,12 +1,11 @@
-{application, graphbase_dsl, [
-    {description, "Graphbase DSL"},
+{application, graphbase_metagraph, [
+    {description, "Graphbase MetaGraph"},
     {vsn, "0.1.0"},
     {registered, []},
     {applications, [
         kernel,
         stdlib,
-        graphbase_core,
-        graphbase_system
+        graphbase_entity
     ]},
     {env, []},
     {modules, []},

@@ -1,4 +1,4 @@
--module(graphbase_system_acl).
+-module(graphbase_acl).
 
 %% API
 -export([
@@ -15,7 +15,7 @@
 %%====================================================================
 
 new(Conn, MetaGraph, User, Access) ->
-    UserName = graphbase_system_user:name(User),
+    UserName = graphbase_acl_user:name(User),
     BAccess = list_to_binary(atom_to_list(Access)),
     Id = <<"acl_", BAccess/binary, "_", UserName/binary>>,
     ACL0 = graphbase_entity_edge:new(Conn, Id, MetaGraph, User),
@@ -39,10 +39,10 @@ access(ACL) ->
     end.
 
 %%--------------------------------------------------------------------
-has(ACL, Graph) ->
+has(ACL, Entity) ->
     {ok, P} = emapred_pipeline:new(
         fun(N) ->
-            case graphbase_entity_obj:ref(Graph) == graphbase_entity_obj:ref(N) of
+            case graphbase_entity_obj:ref(Entity) == graphbase_entity_obj:ref(N) of
                 true  -> {emit, {match, N}};
                 false -> {emit, {nomatch, N}}
             end
@@ -65,9 +65,9 @@ has(ACL, Graph) ->
     emapred_pipeline:stop(P).
 
 %%--------------------------------------------------------------------
-grant(ACL, Graph) ->
-    graphbase_entity_edge:add_neighbors(ACL, [Graph]).
+grant(ACL, Entity) ->
+    graphbase_entity_edge:add_neighbors(ACL, [Entity]).
 
 %%--------------------------------------------------------------------
-revoke(ACL, Graph) ->
-    graphbase_entity_edge:del_neighbors(ACL, [Graph]).
+revoke(ACL, Entity) ->
+    graphbase_entity_edge:del_neighbors(ACL, [Entity]).

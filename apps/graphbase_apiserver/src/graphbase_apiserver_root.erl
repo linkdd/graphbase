@@ -22,31 +22,13 @@ init(Req0 = #{method := <<"GET">>}, State) ->
                 {description, "API reference"},
                 {allow, ["GET"]}
             ]},
-            {link, "/status", [
-                {description, "Current cluster health"},
+            {link, "/metrics", [
+                {description, "Prometheus metrics exporter"},
                 {allow, ["GET"]}
             ]},
-            {link, "/api/users", [
-                {description, "User management"},
-                {endpoints, [
-                    {link, "/", [
-                        {description, "User collection"},
-                        {allow, ["GET", "POST"]}
-                    ]},
-                    {link, "/:username", [
-                        {description, "User resource"},
-                        {allow, ["GET", "PUT", "DELETE"]}
-                    ]}
-                ]}
-            ]},
             {link, "/api/requests", [
-                {description, "Request management"},
-                {endpoints, [
-                    {link, "/", [
-                        {description, "Request handler"},
-                        {allow, ["POST"]}
-                    ]}
-                ]}
+                {description, "Request handler"},
+                {allow, ["POST"]}
             ]}
         ]),
         Req0

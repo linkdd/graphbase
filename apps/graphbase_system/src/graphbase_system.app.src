@@ -6,7 +6,9 @@
     {applications, [
         kernel,
         stdlib,
-        graphbase_entity
+        graphbase_entity,
+        graphbase_metagraph,
+        graphbase_acl
     ]},
     {env, []},
     {modules, []},

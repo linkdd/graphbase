@@ -39,7 +39,7 @@ handle_post(true, Req) ->
     graphbase_apiserver_auth:authenticated(Req, fun(User, Req0) ->
         {ok, Request, Req1} = cowboy_req:read_body(Req0),
         {Status, Reply} = try
-            graphbase_dsl_api:interpret(User, Request)
+            graphbase_dsl:interpret(User, Request)
         of
             R -> {200, R}
         catch

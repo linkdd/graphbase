@@ -21,7 +21,7 @@ parse(Content) ->
     of
         AST -> {ok, AST}
     catch
-        E:R -> {error, {E, R}}
+        E:R:S -> {error, {E, R, S}}
     end.
 
 %%====================================================================
@@ -135,7 +135,7 @@ to_identifier(Identifier) ->
         true  -> list_to_atom(binary_to_list(Identifier));
         false ->
             T = fun(A) -> list_to_binary(atom_to_list(A)) end,
-            Exports = [T(Name) || {Name, _} <- proplists:get_value(exports, graphbase_core_api:module_info())],
+            Exports = [T(Name) || {Name, _} <- proplists:get_value(exports, graphbase_dsl_api:module_info())],
             ExportFilter = fun(Export) ->
                 case Export of
                     module_info -> false;

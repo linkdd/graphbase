@@ -1,4 +1,4 @@
--module(graphbase_core).
+-module(graphbase_core_utils).
 
 %% API exports
 -export([

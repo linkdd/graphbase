@@ -305,6 +305,30 @@ element() ->
     ] end)).
 
 %%--------------------------------------------------------------------
+list_comprehension() ->
+    named(list_comprehension, group(fun() -> [
+        whitespace(),
+        token(comprehension_begin, <<"|">>),
+        whitespace(),
+        expression(),
+        token(for, <<"for">>),
+        whitespace(),
+        variable_name(),
+        whitespace(),
+        token(in, <<"in">>),
+        whitespace(),
+        variable_name(),
+        zero_or_one(group(fun() -> [
+            whitespace(),
+            token(condition, <<"if">>),
+            whitespace(),
+            expression()
+        ] end)),
+        whitespace(),
+        token(comprehension_end, <<"|">>)
+    ] end)).
+
+%%--------------------------------------------------------------------
 left_parenthesis() ->
     token(left_parenthesis, <<"(">>).
 

@@ -17,7 +17,7 @@
 %%====================================================================
 
 new(Conn, Graph, Node) ->
-    Edge = graphbase_entity_obj:new(Conn, type(Graph)),
+    Edge = graphbase_entity_scope:set_graph(graphbase_entity_obj:new(Conn, type(Graph)), Graph),
     graphbase_entity_obj:update(
         Edge,
         {<<"node">>, register},
@@ -26,7 +26,7 @@ new(Conn, Graph, Node) ->
 
 %%--------------------------------------------------------------------
 new(Conn, Id, Graph, Node) ->
-    Edge = graphbase_entity_obj:new(Conn, Id, type(Graph)),
+    Edge = graphbase_entity_scope:set_graph(graphbase_entity_obj:new(Conn, Id, type(Graph)), Graph),
     graphbase_entity_obj:update(
         Edge,
         {<<"node">>, register},

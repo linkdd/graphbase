@@ -27,4 +27,12 @@ start_link() ->
 %%====================================================================
 
 init([]) ->
-    {ok, {{one_for_all, 1, 5}, []}}.
+    {ok, {{one_for_all, 1, 5}, [
+        #{
+            id => graphbase_system_monitor_server,
+            start => {graphbase_system_monitor, start_link, []},
+            restart => permanent,
+            type => worker,
+            modules => [graphbase_system_monitor]
+        }
+    ]}}.

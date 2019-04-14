@@ -16,11 +16,11 @@
 
 start(_StartType, _StartArgs) ->
     ListenerName = graphbase_apiserver_listener,
-    Port = graphbase_core:get_confopt(int, apiserver_port, 7439),
+    Port = graphbase_core_utils:get_confopt(int, apiserver_port, 7439),
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/", graphbase_apiserver_root, []},
-            {"/status", graphbase_apiserver_status, []},
+            {"/metrics", graphbase_apiserver_metrics, []},
             {"/api/requests", graphbase_apiserver_requests, []}
         ]}
     ]),
@@ -42,14 +42,14 @@ stop(Listener) ->
 %%====================================================================
 
 start_listener(ListenerName, Port, Options) ->
-    start_listener(graphbase_core:get_confopt(apiserver_tls, false), ListenerName, Port, Options).
+    start_listener(graphbase_core_utils:get_confopt(apiserver_tls, false), ListenerName, Port, Options).
 
 %%--------------------------------------------------------------------
 start_listener(true, ListenerName, Port, Options) ->
-    case graphbase_core:get_confopt(str, apiserver_cacertfile, undefined) of
+    case graphbase_core_utils:get_confopt(str, apiserver_cacertfile, undefined) of
         undefined  -> {error, {missing_opt, cacertfile}};
         CACertFile ->
-            case graphbase_core:get_confopt(str, apiserver_certfile, undefined) of
+            case graphbase_core_utils:get_confopt(str, apiserver_certfile, undefined) of
                 undefined -> {error, {missing_opt, certfile}};
                 CertFile  ->
                     cowboy:start_tls(

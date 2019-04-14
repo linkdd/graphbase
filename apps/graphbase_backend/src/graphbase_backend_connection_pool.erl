@@ -10,6 +10,7 @@
 %% API
 -export([
     start_link/3,
+    count_children/0,
     acquire/0,
     release/1,
     with/1
@@ -28,6 +29,10 @@ start_link(Host, Port, Options) ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, {Host, Port, Options}).
 
 %%--------------------------------------------------------------------
+count_children() ->
+    proplists:get_value(active, supervisor:count_children(?SERVER), 0).
+
+%%--------------------------------------------------------------------
 acquire() ->
     supervisor:start_child(?SERVER, []).
 
@@ -37,7 +42,7 @@ release(Conn) ->
 
 %%--------------------------------------------------------------------
 with(Block) ->
-    graphbase_core:with(
+    graphbase_core_utils:with(
         fun() -> graphbase_backend_connection_pool:acquire() end,
         fun(Conn) -> graphbase_backend_connection_pool:release(Conn) end,
         Block
