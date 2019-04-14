@@ -3,457 +3,382 @@
 %% API
 -export([lex/1]).
 
-%% Utility rules
--export([
-    zero_or_one/2,
-    zero_or_more/2,
-    one_or_more/2,
-    group/2,
-    one_of/2,
-    token/3,
-    token_regex/3,
-    whitespace/1
-]).
-
-%% Rules
--export([
-    pipeline/1,
-    pipeline_separator/1,
-    pipeline_end/1,
-    statement/1,
-    assign/1,
-    yield/1,
-    function_call/1,
-    function_param/1,
-    identifier/1,
-    expression/1,
-    variable_name/1,
-    constant/1,
-    boolean/1,
-    integer/1,
-    decimal/1,
-    digits/1,
-    string/1,
-    list/1,
-    tuple/1,
-    element/1,
-    left_parenthesis/1,
-    right_parenthesis/1,
-    left_bracket/1,
-    right_bracket/1,
-    left_brace/1,
-    right_brace/1
-]).
-
 %%====================================================================
 %% API functions
 %%====================================================================
 
 lex(Code0) ->
-    R = rule(pipeline),
-    case R(string:trim(Code0)) of
+    ETS = ets:new(memo, [set]),
+    ets:insert(ETS, {code, Code0}),
+    Res = case run_rule(pipeline(), ETS, string:trim(Code0)) of
         {match, Tokens, <<>>} -> {match, Tokens};
         {match, _, Code1}     -> {error, {unexpected_code, string:trim(Code1)}};
-        {nomatch, Reason}     -> {error, {nomatch, Reason}}
-    end.
+        {nomatch, Reason}     ->
+            At = get_or_create_memo(at, ETS, 0),
+            Stack = get_or_create_memo(stack, ETS, []),
+            {error, {nomatch, [{at, At}, {stack, Stack}] ++ Reason}}
+    end,
+    ets:delete(ETS),
+    Res.
 
 %%====================================================================
 %% Utility rules
 %%====================================================================
 
-rule(Name) ->
-    fun(Code) -> check_rule(Code, Name) end.
+named(Name, Rule) ->
+    {Name, fun(ETS, Code0) ->
+        case run_rule(Rule, ETS, Code0) of
+            {match, Tokens, Code1} -> {match, [{Name, Tokens}], Code1};
+            R                      -> R
+        end
+    end}.
+
+zero_or_one(Rule) ->
+    {zero_or_one, fun(ETS, Code) ->
+        case run_rule(Rule, ETS, Code) of
+            {nomatch, _} -> {match, [], Code};
+            R            -> R
+        end
+    end}.
 
 %%--------------------------------------------------------------------
-rule(Name, Args) ->
-    fun(Code) -> check_rule(Code, Name, Args) end.
+zero_or_more(Rule) ->
+    {zero_or_more, fun(ETS, Code0) ->
+        case run_rule(Rule, ETS, Code0) of
+            {nomatch, _}            -> {match, [], Code0};
+            {match, Tokens0, Code1} ->
+                R = zero_or_more(Rule),
+                case run_rule(R, ETS, Code1) of
+                    {match, [], Code2}      -> {match, Tokens0, Code2};
+                    {match, Tokens1, Code3} -> {match, Tokens0 ++ Tokens1, Code3}
+                end
+        end
+    end}.
 
 %%--------------------------------------------------------------------
-zero_or_one(Code, Rule) ->
-    case Rule(Code) of
-        {nomatch, _} -> {match, [], Code};
-        R            -> R
-    end.
+one_or_more(Rule) ->
+    group(fun() -> [Rule, zero_or_more(Rule)] end).
 
 %%--------------------------------------------------------------------
-zero_or_more(Code0, Rule) ->
-    case Rule(Code0) of
-        {nomatch, _}            -> {match, [], Code0};
-        {match, Tokens0, Code1} ->
-            case zero_or_more(Code1, Rule) of
-                {match, [], Code2}      -> {match, Tokens0, Code2};
-                {match, Tokens1, Code3} -> {match, Tokens0 ++ Tokens1, Code3}
-            end
-    end.
+group(Rules) ->
+    {group, fun(ETS, Code) -> group(ETS, Code, Rules(), []) end}.
 
 %%--------------------------------------------------------------------
-one_or_more(Code, Rule) ->
-    group(Code, [Rule, rule(zero_or_more, [Rule])]).
+one_of(Rules) ->
+    {one_of, fun(ETS, Code) -> one_of(ETS, Code, Rules(), []) end}.
 
 %%--------------------------------------------------------------------
-group(Code, Rules) ->
-    group(Code, Rules, []).
+token(Name, String) ->
+    {Name, fun(_ETS, Code0) ->
+        case string:prefix(Code0, String) of
+            nomatch -> {nomatch, [{expected, Name}]};
+            Code1   -> {match, [{Name, String}], Code1}
+        end
+    end}.
 
 %%--------------------------------------------------------------------
-one_of(Code, Rules) ->
-    one_of(Code, Rules, []).
-
-one_of(Code, [Rule | Rules], Acc) ->
-        case Rule(Code) of
-        {nomatch, E} -> one_of(Code, Rules, Acc ++ [E]);
-        R            -> R
-    end;
-
-one_of(_Code, [], Acc) ->
-    {nomatch, {expected, Acc}}.
-
-%%--------------------------------------------------------------------
-token(Code0, Name, String) ->
-    case string:prefix(Code0, String) of
-        nomatch -> {nomatch, Name};
-        Code1   -> {match, [{Name, String}], Code1}
-    end.
+token_regex(Name, Regex) ->
+    {Name, fun(_ETS, Code0) ->
+        case re:run(Code0, "^" ++ Regex) of
+            nomatch                 -> {nomatch, [{expected, Name}]};
+            {match, [{Begin, End}]} ->
+                Token = binary:part(Code0, Begin, End),
+                Code1 = binary:part(Code0, End, byte_size(Code0) - End),
+                {match, [{Name, Token}], Code1}
+        end
+    end}.
 
 %%--------------------------------------------------------------------
-token_regex(Code, Name, Regex) ->
-    case re:run(Code, "^" ++ Regex) of
-        nomatch                 -> {nomatch, Name};
-        {match, [{Begin, End}]} -> {
-            match,
-            [{Name, string:slice(Code, Begin, End)}],
-            string:slice(Code, End)
-        }
-    end.
-
-%%--------------------------------------------------------------------
-whitespace(Code0) ->
-    case token_regex(Code0, whitespace, "\s+") of
-        {nomatch, whitespace} -> {match, [], Code0};
-        {match, _, Code1}     -> {match, [], Code1}
-    end.
+whitespace() ->
+    {whitespace, fun(ETS, Code0) ->
+        R = token_regex(whitespace, "[\s\r\n]+"),
+        case run_rule(R, ETS, Code0) of
+            {nomatch, _}      -> {match, [], Code0};
+            {match, _, Code1} -> {match, [], Code1}
+        end
+    end}.
 
 %%====================================================================
 %% Rules
 %%====================================================================
 
-pipeline(Code) ->
-    R = rule(group, [[
-        rule(whitespace),
-        rule(statement),
-        rule(whitespace),
-        rule(zero_or_more, [
-            rule(group, [[
-                rule(whitespace),
-                rule(pipeline_separator),
-                rule(whitespace),
-                rule(statement)
-            ]])
-        ]),
-        rule(whitespace),
-        rule(pipeline_end)
-    ]]),
-    R(Code).
+pipeline() ->
+    named(pipeline, one_or_more(statement())).
 
 %%--------------------------------------------------------------------
-pipeline_separator(Code) ->
-    R = rule(token, [pipeline_separator, <<",">>]),
-    R(Code).
+statement() ->
+    named(statement, group(fun() -> [
+        whitespace(),
+        one_of(fun() -> [
+            assign(),
+            yield(),
+            function_call()
+        ] end),
+        whitespace(),
+        token(statement_end, <<";">>)
+    ] end)).
 
 %%--------------------------------------------------------------------
-pipeline_end(Code) ->
-    R = rule(token, [pipeline_end, <<".">>]),
-    R(Code).
+assign() ->
+    named(assign, group(fun() -> [
+        whitespace(),
+        variable_name(),
+        whitespace(),
+        token(assign_operator, <<"=">>),
+        whitespace(),
+        expression()
+    ] end)).
 
 %%--------------------------------------------------------------------
-statement(Code) ->
-    R = rule(one_of, [[
-        rule(assign),
-        rule(yield),
-        rule(function_call)
-    ]]),
-    R(Code).
+yield() ->
+    named(yield, group(fun() -> [
+        whitespace(),
+        token(yield, <<"yield">>),
+        whitespace(),
+        left_parenthesis(),
+        whitespace(),
+        variable_name(),
+        whitespace(),
+        right_parenthesis()
+    ] end)).
 
 %%--------------------------------------------------------------------
-assign(Code) ->
-    R = rule(group, [[
-        rule(whitespace),
-        rule(variable_name),
-        rule(whitespace),
-        rule(token, [assign_operator, <<"=">>]),
-        rule(whitespace),
-        rule(expression)
-    ]]),
-    R(Code).
+function_call() ->
+    named(function_call, group(fun() -> [
+        whitespace(),
+        identifier(),
+        whitespace(),
+        left_parenthesis(),
+        whitespace(),
+        named(function_parameters, zero_or_one(
+            group(fun() -> [
+                whitespace(),
+                function_param(),
+                whitespace(),
+                zero_or_more(
+                    group(fun() -> [
+                        whitespace(),
+                        token(function_param_separator, <<",">>),
+                        whitespace(),
+                        function_param()
+                    ] end)
+                )
+            ] end)
+        )),
+        whitespace(),
+        right_parenthesis()
+    ] end)).
 
 %%--------------------------------------------------------------------
-yield(Code) ->
-    R = rule(group, [[
-        rule(whitespace),
-        rule(token, [yield, <<"yield">>]),
-        rule(whitespace),
-        rule(left_parenthesis),
-        rule(whitespace),
-        rule(variable_name),
-        rule(whitespace),
-        rule(right_parenthesis)
-    ]]),
-    R(Code).
+function_param() ->
+    named(function_param, group(fun() -> [
+        whitespace(),
+        identifier(),
+        whitespace(),
+        token(assign_operator, <<"=">>),
+        whitespace(),
+        expression()
+    ] end)).
 
 %%--------------------------------------------------------------------
-function_call(Code) ->
-    R = rule(group, [[
-        rule(whitespace),
-        rule(identifier),
-        rule(whitespace),
-        rule(left_parenthesis),
-        rule(whitespace),
-        rule(zero_or_one, [
-            rule(group, [[
-                rule(whitespace),
-                rule(function_param),
-                rule(whitespace),
-                rule(zero_or_more, [
-                    rule(group, [[
-                        rule(whitespace),
-                        rule(token, [function_param_separator, <<",">>]),
-                        rule(whitespace),
-                        rule(function_param)
-                    ]])
-                ])
-            ]])
-        ]),
-        rule(whitespace),
-        rule(right_parenthesis)
-    ]]),
-    R(Code).
+identifier() ->
+    token_regex(identifier, "[a-z][a-zA-Z0-9_]*").
 
 %%--------------------------------------------------------------------
-function_param(Code) ->
-    R = rule(group, [[
-        rule(whitespace),
-        rule(identifier),
-        rule(whitespace),
-        rule(token, [assign_operator, <<"=">>]),
-        rule(whitespace),
-        rule(expression)
-    ]]),
-    R(Code).
+expression() ->
+    named(expression, one_of(fun() -> [
+        variable_name(),
+        constant(),
+        function_call()
+    ] end)).
 
 %%--------------------------------------------------------------------
-identifier(Code) ->
-    R = rule(token_regex, [identifier, "[a-z][a-zA-Z0-9_]*"]),
-    R(Code).
+variable_name() ->
+    token_regex(variable_name, "[A-Z][a-zA-Z0-9_]*").
 
 %%--------------------------------------------------------------------
-expression(Code) ->
-    R = rule(one_of, [[
-        rule(variable_name),
-        rule(constant),
-        rule(function_call)
-    ]]),
-    R(Code).
+constant() ->
+    named(constant, one_of(fun() -> [
+        boolean(),
+        decimal(),
+        integer(),
+        string(),
+        list(),
+        tuple()
+    ] end)).
 
 %%--------------------------------------------------------------------
-variable_name(Code) ->
-    R = rule(token_regex, [variable_name, "[A-Z][a-zA-Z0-9_]*"]),
-    R(Code).
+boolean() ->
+    named(boolean, one_of(fun() -> [
+        token(true, <<"true">>),
+        token(false, <<"false">>)
+    ] end)).
 
 %%--------------------------------------------------------------------
-constant(Code) ->
-    R = rule(one_of, [[
-        rule(boolean),
-        rule(decimal),
-        rule(integer),
-        rule(string),
-        rule(list),
-        rule(tuple)
-    ]]),
-    R(Code).
+integer() ->
+    named(integer, group(fun() -> [
+        zero_or_one(token(sign, <<"-">>)),
+        whitespace(),
+        digits()
+    ] end)).
 
 %%--------------------------------------------------------------------
-boolean(Code) ->
-    one_of(Code, [
-        rule(token, [true, <<"true">>]),
-        rule(token, [false, <<"false">>])
-    ]).
+decimal() ->
+    named(decimal, group(fun() -> [
+        whitespace(),
+        integer(),
+        token(floating_point, <<".">>),
+        digits()
+    ] end)).
 
 %%--------------------------------------------------------------------
-integer(Code) ->
-    R = rule(group, [[
-        rule(zero_or_one, [
-            rule(token, [sign, <<"-">>])
-        ]),
-        rule(whitespace),
-        rule(digits)
-    ]]),
-    R(Code).
+digits() ->
+    token_regex(digits, "[0-9]+").
 
 %%--------------------------------------------------------------------
-decimal(Code) ->
-    R = rule(group, [[
-        rule(whitespace),
-        rule(integer),
-        rule(token, [floating_point, <<".">>]),
-        rule(digits)
-    ]]),
-    R(Code).
+string() ->
+    named(string, group(fun() -> [
+        whitespace(),
+        token_regex(data, "\"(?:[^\"])*\"")
+    ] end)).
 
 %%--------------------------------------------------------------------
-digits(Code) ->
-    R = rule(token_regex, [digits, "[0-9]+"]),
-    R(Code).
+list() ->
+    named(list, group(fun() -> [
+        whitespace(),
+        left_bracket(),
+        whitespace(),
+        zero_or_one(
+            group(fun() -> [
+                whitespace(),
+                element(),
+                whitespace(),
+                zero_or_more(
+                    group(fun() -> [
+                        whitespace(),
+                        token(list_separator, <<",">>),
+                        whitespace(),
+                        element()
+                    ] end)
+                )
+            ] end)
+        ),
+        whitespace(),
+        right_bracket()
+    ] end)).
 
 %%--------------------------------------------------------------------
-string(Code) ->
-    R = rule(group, [[
-        rule(whitespace),
-        rule(token_regex, [data, "\"(?:[^\"])*\""])
-    ]]),
-    R(Code).
+tuple() ->
+    named(tuple, group(fun() -> [
+        whitespace(),
+        left_brace(),
+        whitespace(),
+        zero_or_one(
+            group(fun() -> [
+                whitespace(),
+                element(),
+                whitespace(),
+                zero_or_more(
+                    group(fun() -> [
+                        whitespace(),
+                        token(tuple_separator, <<",">>),
+                        whitespace(),
+                        element()
+                    ] end)
+                )
+            ] end)
+        ),
+        whitespace(),
+        right_brace()
+    ] end)).
 
 %%--------------------------------------------------------------------
-list(Code) ->
-    R = rule(group, [[
-        rule(whitespace),
-        rule(left_bracket),
-        rule(whitespace),
-        rule(zero_or_one, [
-            rule(group, [[
-                rule(whitespace),
-                rule(element),
-                rule(whitespace),
-                rule(zero_or_more, [
-                    rule(group, [[
-                        rule(whitespace),
-                        rule(token, [list_separator, <<",">>]),
-                        rule(whitespace),
-                        rule(element)
-                    ]])
-                ])
-            ]])
-        ]),
-        rule(whitespace),
-        rule(right_bracket)
-    ]]),
-    R(Code).
-
+element() ->
+    named(element, one_of(fun() -> [
+        identifier(),
+        boolean(),
+        decimal(),
+        integer(),
+        string(),
+        list(),
+        tuple()
+    ] end)).
 
 %%--------------------------------------------------------------------
-tuple(Code) ->
-    R = rule(group, [[
-        rule(whitespace),
-        rule(left_brace),
-        rule(whitespace),
-        rule(zero_or_one, [
-            rule(group, [[
-                rule(whitespace),
-                rule(element),
-                rule(whitespace),
-                rule(zero_or_more, [
-                    rule(group, [[
-                        rule(whitespace),
-                        rule(token, [tuple_separator, <<",">>]),
-                        rule(whitespace),
-                        rule(element)
-                    ]])
-                ])
-            ]])
-        ]),
-        rule(whitespace),
-        rule(right_brace)
-    ]]),
-    R(Code).
+left_parenthesis() ->
+    token(left_parenthesis, <<"(">>).
 
 %%--------------------------------------------------------------------
-element(Code) ->
-    R = rule(one_of, [[
-        rule(identifier),
-        rule(boolean),
-        rule(decimal),
-        rule(integer),
-        rule(string),
-        rule(list),
-        rule(tuple)
-    ]]),
-    R(Code).
+right_parenthesis() ->
+    token(right_parenthesis, <<")">>).
 
 %%--------------------------------------------------------------------
-left_parenthesis(Code) ->
-    R = rule(token, [left_parenthesis, <<"(">>]),
-    R(Code).
+left_bracket() ->
+    token(left_bracket, <<"[">>).
 
 %%--------------------------------------------------------------------
-right_parenthesis(Code) ->
-    R = rule(token, [right_parenthesis, <<")">>]),
-    R(Code).
+right_bracket() ->
+    token(right_bracket, <<"]">>).
 
 %%--------------------------------------------------------------------
-left_bracket(Code) ->
-    R = rule(token, [left_bracket, <<"[">>]),
-    R(Code).
+left_brace() ->
+    token(left_brace, <<"{">>).
 
 %%--------------------------------------------------------------------
-right_bracket(Code) ->
-    R = rule(token, [right_bracket, <<"]">>]),
-    R(Code).
-
-%%--------------------------------------------------------------------
-left_brace(Code) ->
-    R = rule(token, [left_brace, <<"{">>]),
-    R(Code).
-
-%%--------------------------------------------------------------------
-right_brace(Code) ->
-    R = rule(token, [right_brace, <<"}">>]),
-    R(Code).
+right_brace() ->
+    token(right_brace, <<"}">>).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-named_rules() ->
-    [
-        pipeline,
-        assign,
-        yield,
-        function_call,
-        function_param,
-        expression,
-        constant,
-        boolean,
-        decimal,
-        integer,
-        string,
-        list,
-        tuple,
-        element
-    ].
-
-%%--------------------------------------------------------------------
-check_rule(Code, Name) ->
-    check_rule(Code, Name, []).
-
-%%--------------------------------------------------------------------
-check_rule(Code0, Name, Args) ->
+run_rule({RuleName, RuleFunction}, ETS, Code0) ->
+    RuleStack0 = get_or_create_memo(stack, ETS, []),
+    RuleStack1 = [{get_or_create_memo(at, ETS, 0), RuleName, string:slice(Code0, 0, 10)} | RuleStack0],
+    update_memo(stack, ETS, RuleStack1),
     try
-        erlang:apply(?MODULE, Name, [Code0 | Args])
+        RuleFunction(ETS, Code0)
     of
-        {nomatch, R}           -> {nomatch, {Name, R}};
+        {nomatch, R} ->
+            {nomatch, R};
+        
         {match, Tokens, Code1} ->
-            case lists:member(Name, named_rules()) of
-                true  -> {match, [{Name, Tokens}], Code1};
-                false -> {match, Tokens, Code1}
-            end
+            OrigCode = get_or_create_memo(code, ETS, <<>>),
+            update_memo(at, ETS, (byte_size(OrigCode) - byte_size(Code1))),
+            update_memo(stack, ETS, RuleStack0),
+            {match, Tokens, Code1}
     catch
-        error:{badmatch, R} -> {nomatch, {Name, R}}
+        error:Reason ->
+            {nomatch, Reason}
     end.
 
 %%--------------------------------------------------------------------
-group(Code0, [Rule | Rules], Acc) ->
-    case Rule(Code0) of
-        {match, Tokens, Code1} -> group(Code1, Rules, Acc ++ Tokens);
+group(ETS, Code0, [Rule | Rules], Acc) ->
+    case run_rule(Rule, ETS, Code0) of
+        {match, Tokens, Code1} -> group(ETS, Code1, Rules, Acc ++ Tokens);
         {nomatch, R}           -> {nomatch, R}
     end;
 
-group(Code, [], Acc) ->
+group(_ETS, Code, [], Acc) ->
     {match, Acc, Code}.
+
+%%--------------------------------------------------------------------
+one_of(ETS, Code, [Rule | Rules], Acc) ->
+    case run_rule(Rule, ETS, Code) of
+        {nomatch, E} -> one_of(ETS, Code, Rules, Acc ++ E);
+        R            -> R
+    end;
+    
+one_of(_ETS, _Code, [], Acc) ->
+    {nomatch, [{unexpected, Acc}]}.
+
+%%--------------------------------------------------------------------
+get_or_create_memo(Memo, ETS, DefaultValue) ->
+    case ets:lookup(ETS, Memo) of
+        [{Memo, Value}] -> Value;
+        []              -> update_memo(Memo, ETS, DefaultValue), DefaultValue
+    end.
+
+%%--------------------------------------------------------------------
+update_memo(Memo, ETS, Value) ->
+    ets:insert(ETS, {Memo, Value}).

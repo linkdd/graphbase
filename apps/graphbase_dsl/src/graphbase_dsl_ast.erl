@@ -15,46 +15,52 @@
 %%====================================================================
 
 parse(Content) ->
-    {match, Tokens} = graphbase_dsl_lexer:lex(Content),
-    walk(Tokens).
+    try
+        {match, Tokens} = graphbase_dsl_lexer:lex(Content),
+        walk(Tokens)
+    of
+        AST -> {ok, AST}
+    catch
+        E:R -> {error, {E, R}}
+    end.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-walk([{pipeline, Tokens}]) ->
-    [{pipeline_end, _} | Statements] = lists:reverse(Tokens),
-    walk(lists:reverse(Statements));
+walk([{pipeline, StatementsTokens}]) ->
+    walk(StatementsTokens);
 
-walk([{pipeline_separator, _} | Tokens]) ->
-    walk(Tokens);
+walk([{statement, StatementTokens} | Tokens]) ->
+    [Statement, {statement_end, _}] = StatementTokens,
+    [walk([Statement]) | walk(Tokens)];
 
-walk([{assign, AssignTokens} | Tokens]) ->
+walk([{assign, AssignTokens}]) ->
     [
         {variable_name, VarName},
         {assign_operator, _},
         {expression, Expression}
     ] = AssignTokens,
-    [{assign, VarName, walk(Expression)} | walk(Tokens)];
+    {assign, VarName, walk(Expression)};
 
-walk([{yield, YieldTokens} | Tokens]) ->
+walk([{yield, YieldTokens}]) ->
     [
         {yield, _},
         {left_parenthesis, _},
         {variable_name, VarName},
         {right_parenthesis, _}
     ] = YieldTokens,
-    [{yield, VarName} | walk(Tokens)];
+    {yield, VarName};
 
-walk([{function_call, CallTokens} | Tokens]) ->
+walk([{function_call, CallTokens}]) ->
     [
         {identifier, Identifier},
-        {left_parenthesis, _} |
-        TrailingTokens
+        {left_parenthesis, _},
+        {function_parameters, ParametersTokens},
+        {right_parenthesis, _}
     ] = CallTokens,
-    [{right_parenthesis, _} | ParametersTokens] = lists:reverse(TrailingTokens),
     Parameters = walk(ParametersTokens),
-    [{call, to_identifier(Identifier), Parameters} | walk(Tokens)];
+    {call, to_identifier(Identifier), Parameters};
 
 walk([{function_param, ParamTokens} | Tokens]) ->
     [
@@ -62,7 +68,7 @@ walk([{function_param, ParamTokens} | Tokens]) ->
         {assign_operator, _},
         {expression, Expression}
     ] = ParamTokens,
-    [{to_identifier(Identifier), walk(Expression)} | walk(Tokens)];
+    [{Identifier, walk(Expression)} | walk(Tokens)];
 
 walk([{function_param_separator, _} | Tokens]) ->
     walk(Tokens);

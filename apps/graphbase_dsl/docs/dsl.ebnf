@@ -1,5 +1,5 @@
 pipeline
-    = statement { "," statement } "."
+    = statement ";" { statement ";" }
     ;
 
 statement

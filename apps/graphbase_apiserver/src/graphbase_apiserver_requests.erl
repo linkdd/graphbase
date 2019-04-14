@@ -38,9 +38,15 @@ handle_post(false, Req0) ->
 handle_post(true, Req) ->
     graphbase_apiserver_auth:authenticated(Req, fun(User, Req0) ->
         {ok, Request, Req1} = cowboy_req:read_body(Req0),
-        Reply = graphbase_dsl_api:interpret(User, Request),
+        {Status, Reply} = try
+            graphbase_dsl_api:interpret(User, Request)
+        of
+            R -> {200, R}
+        catch
+            Exc:Reason -> {500, {error, {Exc, Reason, erlang:get_stacktrace()}}}
+        end,
         cowboy_req:reply(
-            200,
+            Status,
             #{<<"content-type">> => <<"text/plain">>},
             graphbase_apiserver_packet:encode(Reply),
             Req1
