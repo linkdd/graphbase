@@ -43,7 +43,7 @@ handle_post(true, Req) ->
         of
             R -> {200, R}
         catch
-            Exc:Reason -> {500, {error, {Exc, Reason, erlang:get_stacktrace()}}}
+            Exc:Reason:Stack -> {500, {error, {Exc, Reason, Stack}}}
         end,
         cowboy_req:reply(
             Status,

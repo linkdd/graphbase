@@ -154,6 +154,8 @@ keywords() ->
     [
         <<"empty">>,
         <<"property">>,
+        <<"in">>,
+        <<"nin">>,
         <<"eq">>,
         <<"ne">>,
         <<"gt">>,

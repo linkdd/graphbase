@@ -6,6 +6,7 @@
     graph/2,
     nodes/2,
     edges/2,
+    walk/2,
     filter/2
 ]).
 
@@ -22,13 +23,8 @@ value(_User, Arguments) ->
     graphbase_backend_connection_pool:with(fun(Conn) ->
         F = fun(Ref) ->
             case graphbase_entity_obj:fetch(graphbase_entity_obj:unref(Conn, Ref)) of
-                {ok, Entity} ->
-                    Id = graphbase_entity_obj:id(Entity),
-                    Value = graphbase_entity_obj:value(Entity),
-                    [{{<<"$id">>, register}, Id} | Value];
-
-                Error ->
-                    throw(Error)
+                {ok, Entity} -> graphbase_entity_obj:value(Entity);
+                Error        -> throw(Error)
             end
         end,
         try
@@ -40,7 +36,7 @@ value(_User, Arguments) ->
                     false -> {ok, lists:nth(1, Result)}
                 end
         catch
-            _:Reason -> {error, {unable_to_get_value, Reason}}
+            _:Reason:Stack -> {error, {unable_to_get_value, Reason, Stack}}
         end
     end).
 
@@ -98,6 +94,59 @@ edges(User, Arguments) ->
                             graphbase_entity_obj:ref(Node) ||
                             Node <- graphbase_entity_graph:filter_edges(Graph, Rules)
                         ]};
+
+                    false ->
+                        {error, {unauthorized, read}}
+                end
+            end)
+    end.
+
+%%--------------------------------------------------------------------
+walk(User, Arguments) ->
+    case get_argument(graph, Arguments) of
+        undefined -> {error, {missing_argument, graph}};
+        GraphRef  ->
+            graphbase_backend_connection_pool:with(fun(Conn) ->
+                Graph = graphbase_entity_obj:unref(Conn, GraphRef),
+                From = get_argument(from, Arguments, []),
+                To = get_argument(to, Arguments, []),
+                Via = get_argument(via, Arguments, []),
+
+                case can_access(Conn, User, Graph, read) of
+                    true ->
+                        Nodes = graphbase_entity_graph:filter_nodes(Graph, From),
+                        Relationships = graphbase_entity_graph:filter_edges(Graph, {all_of, [Via, [
+                            {property, {<<"node">>, register}, {in, [
+                                graphbase_entity_obj:ref(Node) || Node <- Nodes
+                            ]}}
+                        ]]}),
+
+                        {ok, P} = emapred_pipeline:new(
+                            fun(Edge) ->
+                                {emit, {neighbors, [
+                                    graphbase_entity_obj:id(Neighbor) ||
+                                    Neighbor <- graphbase_entity_edge:get_neighbors(Edge)
+                                ]}}
+                            end,
+                            fun(neighbors, EdgeNeighbors, AllNeighbors) ->
+                                {ok, sets:union(sets:from_list(EdgeNeighbors), AllNeighbors)}
+                            end,
+                            sets:new()
+                        ),
+                        lists:foreach(
+                            fun(Edge) ->
+                                ok = emapred_pipeline:send(P, Edge),
+                                ok
+                            end,
+                            Relationships
+                        ),
+                        AllNeighbors = emapred_pipeline:stop(P),
+
+                        Targets = graphbase_entity_graph:filter_nodes(Graph, {all_of, [To, [
+                            {property, {<<"$id">>, register}, {in, sets:to_list(AllNeighbors)}}
+                        ]]}),
+
+                        {ok, [graphbase_entity_obj:ref(Target) || Target <- Targets]};
 
                     false ->
                         {error, {unauthorized, read}}

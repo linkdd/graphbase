@@ -90,9 +90,9 @@ delete(#entity{conn = Conn, id = Id, type = Type}) ->
     end.
 
 %%--------------------------------------------------------------------
-value(Entity) ->
+value(Entity = #entity{id = Id}) ->
     case fetch(Entity) of
-        {ok, #entity{data = Data}} -> riakc_map:value(Data);
+        {ok, #entity{data = Data}} -> [{{<<"$id">>, register}, Id} | riakc_map:value(Data)];
         Error                      -> Error
     end.
 

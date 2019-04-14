@@ -7,6 +7,24 @@
 %% API functions
 %%====================================================================
 
+match({all_of, [RulesA | Rules]}, PropList) ->
+    case match(RulesA, PropList) of
+        true  -> match({all_of, Rules}, PropList);
+        false -> false
+    end;
+
+match({all_of, []}, _PropList) ->
+    true;
+
+match({any_of, [RulesA | Rules]}, PropList) ->
+    case match(RulesA, PropList) of
+        true  -> true;
+        false -> match({any_of, Rules}, PropList)
+    end;
+
+match({any_of, []}, _PropList) ->
+    false;
+
 match([Rule | Rules], PropList) ->
     case test(Rule, PropList) of
         true -> match(Rules, PropList);
@@ -36,6 +54,14 @@ test({property, Name, SubRule}, PropList) ->
     test_property(SubRule, proplists:get_value(Name, PropList)).
 
 %%--------------------------------------------------------------------
+test_property({in, Values}, Property) ->
+    lists:member(Property, Values);
+test_property({nin, Values}, Property) ->
+    case lists:member(Property, Values) of
+        true  -> false;
+        false -> true
+    end;
+
 test_property({eq, _Property}, _Property) ->
     true;
 test_property({eq, _Value}, _Property) ->

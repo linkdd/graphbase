@@ -20,8 +20,8 @@ with(Initializer, Finalizer, Block) ->
             of
                 RetVal -> RetVal
             catch
-                Exception:Reason ->
-                    {error, {caught, Exception, Reason}}
+                Exception:Reason:Stack ->
+                    {error, {caught, Exception, Reason, Stack}}
             after
                 case Finalizer(Resource) of
                     ok    -> ok;
