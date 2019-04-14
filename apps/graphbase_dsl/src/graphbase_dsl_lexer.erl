@@ -91,7 +91,7 @@ token_regex(Name, Regex) ->
 %%--------------------------------------------------------------------
 whitespace() ->
     {whitespace, fun(ETS, Code0) ->
-        R = token_regex(whitespace, "[\s\r\n]+"),
+        R = token_regex(whitespace, "[\s\t\r\n]+"),
         case run_rule(R, ETS, Code0) of
             {nomatch, _}      -> {match, [], Code0};
             {match, _, Code1} -> {match, [], Code1}
