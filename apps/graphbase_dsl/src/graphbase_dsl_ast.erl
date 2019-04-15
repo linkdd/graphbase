@@ -110,12 +110,12 @@ walk([{string, [{data, String}]}]) ->
 walk([{list, Tokens}]) ->
     [{left_bracket, _} | TrailingTokens] = Tokens,
     [{right_bracket, _} | Elements] = lists:reverse(TrailingTokens),
-    walk(lists:reverse(Elements));
+    {list, walk(lists:reverse(Elements))};
 
 walk([{tuple, Tokens}]) ->
     [{left_brace, _} | TrailingTokens] = Tokens,
     [{right_brace, _} | Elements] = lists:reverse(TrailingTokens),
-    list_to_tuple(walk(lists:reverse(Elements)));
+    {tuple, list_to_tuple(walk(lists:reverse(Elements)))};
 
 walk([{element, Element} | Tokens]) ->
     [walk(Element) | walk(Tokens)];

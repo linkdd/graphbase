@@ -10,6 +10,8 @@
     run/2
 ]).
 
+-define(API, graphbase_dsl_api).
+
 %%====================================================================
 %% API functions
 %%====================================================================
@@ -38,7 +40,7 @@ run_statement(User, {assign, Name, Value}, Scope, Response) ->
     end;
 
 run_statement(User, {call, Function, Arguments}, Scope, Response) ->
-    case run_call(User, Function, Arguments, Scope) of
+    case expand(User, {call, Function, Arguments}, Scope) of
         {ok, _}         -> {ok, Scope, Response};
         {error, Reason} -> {error, {call_failed, {Function, Arguments}, Reason}}
     end;
@@ -47,38 +49,34 @@ run_statement(_User, {yield, Name}, Scope, Response) ->
     {ok, Scope, run_yield(Name, Scope, Response)}.
 
 %%--------------------------------------------------------------------
-run_assign(_User, Name, {constant, Value}, Scope) ->
-    {ok, dict:store(Name, Value, Scope)};
-
-run_assign(User, Name, {call, Function, Arguments}, Scope) ->
-    case run_call(User, Function, Arguments, Scope) of
-        {ok, Value}     -> {ok, dict:store(Name, Value, Scope)};
-        {error, Reason} -> {error, {call_failed, {Function, Arguments}, Reason}}
-    end;
-
-run_assign(_User, Name, {variable, VarName}, Scope) ->
-    {ok, dict:store(Name, dict:fetch(VarName, Scope), Scope)}.
+run_assign(User, Name, Expression, Scope) ->
+    {ok, Value} = expand(User, Expression, Scope),
+    {ok, dict:store(Name, Value, Scope)}.
 
 %%--------------------------------------------------------------------
 run_yield(Name, Scope, Response) ->
     dict:store(Name, dict:fetch(Name, Scope), Response).
 
 %%--------------------------------------------------------------------
-run_call(User, Function, Arguments, Scope) ->
-    erlang:apply(graphbase_dsl_api, Function, [User, expand(User, Arguments, Scope, [])]).
+expand(_User, {variable, Name}, Scope) ->
+    {ok, dict:fetch(Name, Scope)};
 
-%%--------------------------------------------------------------------
-expand(User, [{Key, {variable, Name}} | Properties], Scope, Acc) ->
-    expand(User, Properties, Scope, [{Key, dict:fetch(Name, Scope)} | Acc]);
+expand(User, {list, List}, Scope) ->
+    {ok, [Value || {ok, Value} <- [expand(User, Element, Scope) || Element <- List]]};
 
-expand(User, [{Key, {constant, Value}} | Properties], Scope, Acc) ->
-    expand(User, Properties, Scope, [{Key, Value} | Acc]);
+expand(User, {tuple, Tuple}, Scope) ->
+    {ok, Value} = expand(User, {list, tuple_to_list(Tuple)}, Scope),
+    list_to_tuple(Value);
 
-expand(User, [{Key, {call, Function, Arguments}} | Properties], Scope, Acc) ->
-    case run_call(User, Function, Arguments, Scope) of
-        {ok, Value}     -> expand(User, Properties, Scope, [{Key, Value} | Acc]);
-        {error, Reason} -> {error, {call_failed, {Function, Arguments}, Reason}}
-    end;
+expand(_User, {constant, Value}, _Scope) ->
+    {ok, Value};
 
-expand(_User, [], _Scope, Acc) ->
-    Acc.
+expand(User, {proplist, PropList}, Scope) ->
+    {ok, [{Key, Value} || {Key, {ok, Value}} <- [{K, expand(User, V, Scope)} || {K, V} <- PropList]]};
+
+expand(User, {call, Function, Arguments}, Scope) ->
+    {ok, Parameters} = expand(User, {proplist, Arguments}, Scope),
+    erlang:apply(?API, Function, [User, Parameters]);
+
+expand(_User, Value, _Scope) ->
+    {ok, Value}.

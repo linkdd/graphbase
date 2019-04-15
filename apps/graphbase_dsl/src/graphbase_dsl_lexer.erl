@@ -189,6 +189,8 @@ expression() ->
     named(expression, one_of(fun() -> [
         variable_name(),
         constant(),
+        list(),
+        tuple(),
         function_call()
     ] end)).
 
@@ -202,9 +204,7 @@ constant() ->
         boolean(),
         decimal(),
         integer(),
-        string(),
-        list(),
-        tuple()
+        string()
     ] end)).
 
 %%--------------------------------------------------------------------
@@ -295,13 +295,8 @@ tuple() ->
 %%--------------------------------------------------------------------
 element() ->
     named(element, one_of(fun() -> [
-        identifier(),
-        boolean(),
-        decimal(),
-        integer(),
-        string(),
-        list(),
-        tuple()
+        expression(),
+        identifier()
     ] end)).
 
 %%--------------------------------------------------------------------

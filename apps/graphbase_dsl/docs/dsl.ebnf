@@ -31,6 +31,8 @@ identifier
 expression
     = variable_name
     | constant
+    | list
+    | tuple
     | function_call
     ;
 
@@ -43,8 +45,6 @@ constant
     | integer
     | decimal
     | string
-    | list
-    | tuple
     ;
 
 boolean
@@ -77,11 +77,6 @@ tuple
     ;
 
 element
-    = identifier
-    | boolean
-    | decimal
-    | integer
-    | string
-    | list
-    | tuple
+    = expression
+    | identifier
     ;
