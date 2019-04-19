@@ -9,6 +9,8 @@
     edge/2,
     edges/2,
     walk/2,
+    connect/2,
+    disconnect/2,
     match/2,
     filter/2
 ]).
@@ -127,7 +129,7 @@ edge(User, Arguments) ->
 
                         case can_access(Conn, User, Graph0, write) of
                             true ->
-                                Node = graphbase_eneity_obj:unref(Conn, NodeRef),
+                                Node = graphbase_entity_obj:unref(Conn, NodeRef),
                                 Edge0 = case get_argument(id, Arguments) of
                                     undefined -> graphbase_entity_edge:new(Conn, Graph0, Node);
                                     Id        -> graphbase_entity_node:new(Conn, Id, Graph0, Node)
@@ -219,6 +221,58 @@ walk(User, Arguments) ->
                         {error, {unauthorized, read}}
                 end
             end)
+    end.
+
+%%--------------------------------------------------------------------
+connect(User, Arguments) ->
+    case get_argument(nodes, Arguments) of
+        undefined -> {error, {missing_argument, node}};
+        NodeRefs  ->
+            case get_argument(edge, Arguments) of
+                undefined -> {error, {missing_argument, edge}};
+                EdgeRef   ->
+                    graphbase_backend_connection_pool:with(fun(Conn) ->
+                        Nodes = [graphbase_entity_obj:unref(Conn, NodeRef) || NodeRef <- NodeRefs],
+                        Edge0 = graphbase_entity_obj:unref(Conn, EdgeRef),
+                        Graph = graphbase_entity_obj:unref(Conn, graphbase_entity_scope:graph(Edge0)),
+
+                        case can_access(Conn, User, Graph, write) of
+                            true ->
+                                Edge1 = graphbase_entity_edge:add_neighbors(Edge0, Nodes),
+                                {ok, Edge2} = graphbase_entity_obj:save(Edge1),
+                                {ok, [Edge2]};
+                            
+                            false ->
+                                {error, {unauthorized, write}}
+                        end
+                    end)
+            end
+    end.
+
+%%--------------------------------------------------------------------
+disconnect(User, Arguments) ->
+    case get_argument(nodes, Arguments) of
+        undefined -> {error, {missing_argument, node}};
+        NodeRefs  ->
+            case get_argument(edge, Arguments) of
+                undefined -> {error, {missing_argument, edge}};
+                EdgeRef   ->
+                    graphbase_backend_connection_pool:with(fun(Conn) ->
+                        Nodes = [graphbase_entity_obj:unref(Conn, NodeRef) || NodeRef <- NodeRefs],
+                        Edge0 = graphbase_entity_obj:unref(Conn, EdgeRef),
+                        Graph = graphbase_entity_obj:unref(Conn, graphbase_entity_scope:graph(Edge0)),
+
+                        case can_access(Conn, User, Graph, write) of
+                            true ->
+                                Edge1 = graphbase_entity_edge:del_neighbors(Edge0, Nodes),
+                                {ok, Edge2} = graphbase_entity_obj:save(Edge1),
+                                {ok, [Edge2]};
+                            
+                            false ->
+                                {error, {unauthorized, write}}
+                        end
+                    end)
+            end
     end.
 
 %%--------------------------------------------------------------------
